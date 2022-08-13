@@ -1,0 +1,33 @@
+apiVersion: fastflow.dev/beta-1
+kind: Workflow
+metadata:
+  name: digraph
+spec:
+  global_inputs:
+    siblings:
+      - anna
+      - lotti
+      - dinari
+      - juliari
+      - kana
+  dag: |+
+    {% for x in siblings %}
+    - name: emitter_{{ x }}
+      impl: Echo
+      inputs:
+        args: [{{ x }}]
+    {% endfor %}
+
+    - name: collector
+      impl: Echo
+      inputs:
+        args:
+          - "Hello From:"
+    {% for x in siblings %}
+          - " "
+          - {{ "{{ tasks.emitter_" + x + ".outputs.stdout }}" }}
+    {% endfor %}
+      dependencies:
+    {% for x in siblings %}
+      - emitter_{{ x }}
+    {% endfor %}

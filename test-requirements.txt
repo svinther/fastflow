@@ -1,0 +1,6 @@
+# Everything needed to develop (test, debug) the framework.
+
+mypy
+pre-commit
+pytest
+types-PyYAML

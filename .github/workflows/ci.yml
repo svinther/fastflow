@@ -1,0 +1,45 @@
+name: CI stuff
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "49 4 * * *"
+jobs:
+  linters:
+    name: Linting and static analysis
+    runs-on: ubuntu-20.04
+    timeout-minutes: 5  # usually 1-2, rarely 3 mins (because of installations)
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . -r test-requirements.txt
+      - run: pre-commit run --all-files
+      - run: mypy src
+
+  integration-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        k8s: [latest, v1.23.7, v1.22.10, v1.21.13]
+    name: K8s ${{matrix.k8s}}
+    runs-on: ubuntu-20.04
+    timeout-minutes: 10  # usually 4-5 mins
+    env:
+      K8S: ${{ matrix.k8s }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+      - run: /bin/bash tools/install-run-minikube.sh
+      - run: minikube kubectl --  apply -f chart/crds/kopfpeering-crd.yaml
+      - run: find chart/crds/generated -name *.yaml -exec minikube kubectl -- apply -f '{}' \;
+      - run: minikube kubectl -- create namespace fastflow-test
+      - run: minikube kubectl -- apply --namespace fastflow-test -f test/kopf-test-peering.yaml
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . -r test-requirements.txt
+      - run: pytest --color=yes -s

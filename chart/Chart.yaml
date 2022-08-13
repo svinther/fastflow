@@ -1,0 +1,8 @@
+apiVersion: v2
+name: fastflow
+description: A Helm chart for Kubernetes deployment of Fastflow
+
+type: application
+version: 0.1.0
+
+appVersion: "0.0.3"

@@ -1,0 +1,36 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fastflow
+rules:
+
+  # Framework: knowing which other operators are running (i.e. peering).
+  - apiGroups: [kopf.dev]
+    resources: [kopfpeerings]
+    verbs: [list, watch, patch, get]
+
+  # Framework: posting the events about the handlers progress/errors.
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create]
+
+  # Application: watching & handling for the custom resource we declare.
+  - apiGroups: [fastflow.dev]
+    resources: [workflows]
+    verbs: [list, watch, patch]
+
+  - apiGroups: [fastflow.dev]
+    resources: [tasks]
+    verbs: [create, list, watch, patch]
+
+
+  # Application: other resources it produces and manipulates.
+#  - apiGroups: [ "" ]
+#    resources: [ "pods" ]
+#    verbs: [ "get", "watch", "list", "delete" ]
+#  - apiGroups: [batch, extensions]
+#    resources: [jobs]
+#    verbs: [create]
+#  - apiGroups: [""]
+#    resources: [pods, persistentvolumeclaims]
+#    verbs: [create]

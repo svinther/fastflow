@@ -1,0 +1,82 @@
+[build-system]
+requires = [
+    "setuptools",
+    "setuptools-scm"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fastflow"
+authors = [
+    { name = "Steffen Vinther Sørensen", email = "svinther@gmail.com" },
+]
+description = "A workflow engine based on kopf"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+classifiers = [
+    'Intended Audience :: Developers',
+    'License :: OSI Approved :: MIT License',
+    'Operating System :: OS Independent',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3 :: Only',
+    'Topic :: Software Development :: Libraries',
+]
+
+dependencies = [
+    'kopf==1.35.6',
+    'python-dotenv==0.20.0',
+    'kubernetes_asyncio==23.*',
+    # This is for kopf https://kopf.readthedocs.io/en/stable/authentication/
+    'kubernetes==23.*',
+    'Jinja2==3.1.2',
+    'networkx==2.8.5',
+    'pydantic[email]==1.9.1',
+    'PyYAML',
+    'click'
+]
+
+
+dynamic = [
+    "version"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/svinther/fastflow"
+
+[project.scripts]
+fastflow = "fastflow.cli:run"
+
+[tool.setuptools_scm]
+version_scheme = "python-simplified-semver"
+
+[tool.pytest.ini_options]
+testpaths = [
+    "test",
+]
+pythonpath = 'test'
+
+# see https://mypy.readthedocs.io/en/stable/config_file.html#using-a-pyproject-toml
+[tool.mypy]
+warn_unused_configs = true
+warn_return_any = true
+python_version = "3.9"
+
+[[tool.mypy.overrides]]
+module = [
+    'networkx',
+    'kubernetes_asyncio.client',
+    'kubernetes_asyncio.config'
+]
+ignore_missing_imports = true
+
+[tool.black]
+line-length = 79
+target-version = ['py39', 'py310']
+
+[tool.isort]
+profile = "black"
+line_length = 79

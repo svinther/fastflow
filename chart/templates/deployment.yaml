@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+  name: fastflow
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: fastflow
+  template:
+    metadata:
+      labels:
+        app: fastflow
+
+    spec:
+      serviceAccountName: fastflow
+      containers:
+      - image: {{ include "fastflow.image" . }}
+        command: ["fastflow", "--namespace", "{{ .Release.Namespace }}"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200M
+
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+
+        imagePullPolicy: IfNotPresent
+        name: main
+        envFrom:
+          - configMapRef:
+              name: app-config
+
+        ports: []

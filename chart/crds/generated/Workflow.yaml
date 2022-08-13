@@ -1,0 +1,38 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workflows.fastflow.dev
+spec:
+  group: fastflow.dev
+  names:
+    kind: Workflow
+    plural: workflows
+    shortNames: []
+    singular: workflow
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Summary of task statuses
+      jsonPath: .status.tasks_summary
+      name: Tasks Summary
+      type: string
+    - description: Task status, one of [pending, ready, completed, failed]
+      jsonPath: .status.workflow_status
+      name: Status
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: beta-1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            type: object
+            x-kubernetes-preserve-unknown-fields: true
+          status:
+            type: object
+            x-kubernetes-preserve-unknown-fields: true
+        type: object
+    served: true
+    storage: true
