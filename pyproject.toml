@@ -6,7 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fastflow"
+name = "python-fastflow"
 authors = [
     { name = "Steffen Vinther Sørensen", email = "svinther@gmail.com" },
 ]
