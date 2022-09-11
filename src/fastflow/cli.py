@@ -5,14 +5,15 @@ from typing import Any, Dict, List, Optional
 import click
 import kopf
 
-_kopf_args: Dict[str, Any] = {}
+_kopf_kwargs: Dict[str, Any] = {}
+_kopg_args: List[str]
 
 
-def run_fastflow():
-    asyncio.run(kopf.operator(**_kopf_args))
+def run_kopf():
+    asyncio.run(kopf.operator(**_kopf_kwargs))
 
 
-def run_fastflow_in_separate_thread():
+def run_kopf_in_separate_thread():
     thread = threading.Thread(target=run)
     thread.start()
     thread.join()
@@ -42,7 +43,8 @@ def run(
     clusterwide: bool,
     liveness_endpoint: str,
 ) -> None:
-    _kopf_args.update(
+
+    _kopf_kwargs.update(
         dict(
             priority=priority,
             namespaces=namespaces,
@@ -50,4 +52,4 @@ def run(
             liveness_endpoint=liveness_endpoint,
         )
     )
-    run_fastflow()
+    run_kopf()
