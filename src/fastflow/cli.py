@@ -43,7 +43,6 @@ def run(
     clusterwide: bool,
     liveness_endpoint: str,
 ) -> None:
-
     _kopf_kwargs.update(
         dict(
             priority=priority,
