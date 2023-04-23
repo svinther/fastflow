@@ -1,5 +1,5 @@
 from copy import copy
-from typing import Type
+from typing import Optional, Type
 
 import kopf
 from kubernetes_asyncio.client import ApiClient, ApiException, CustomObjectsApi
@@ -8,7 +8,7 @@ from .models import FastflowCRD, create_status_patch, get_crd_by_kind
 
 
 async def create_cr_as_child(
-    namespace, crd: Type[FastflowCRD], body: dict = None
+    namespace, crd: Type[FastflowCRD], body: Optional[dict] = None
 ):
     body = copy(body or {})
     kopf.adopt(body)

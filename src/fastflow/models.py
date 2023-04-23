@@ -286,8 +286,8 @@ def create_status_patch(
     obj,
     success: bool,
     finished: bool,
-    extra_fields: dict = None,
-    message: str = None,
+    extra_fields: Optional[dict] = None,
+    message: Optional[str] = None,
 ) -> dict:
     patch = {
         obj["metadata"]["uid"]: {
@@ -324,7 +324,7 @@ def get_parent_custom_object_lookup_args(child_obj: dict):
 
 
 def get_create_namespaced_custom_object_lookup_args(
-    namespace, crd: Type[FastflowCRD], body: dict = None
+    namespace, crd: Type[FastflowCRD], body: Optional[dict] = None
 ):
     body = deepcopy(body or {})
 

@@ -1,4 +1,4 @@
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import yaml
 from yaml import Loader
@@ -9,10 +9,10 @@ from fastflow.models import WorkflowCRD
 def create_workflow_crd_object(
     name,
     dag: str,
-    labels: Dict[str, str] = None,
-    global_inputs: Union[dict, str] = None,
+    labels: Optional[Dict[str, str]] = None,
+    global_inputs: Optional[Union[dict, str]] = None,
     generateName=False,
-    workflow_dependencies: List[str] = None,
+    workflow_dependencies: Optional[List[str]] = None,
 ):
     if global_inputs is None:
         global_inputs = {}
