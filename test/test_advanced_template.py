@@ -55,7 +55,7 @@ workflow = create_workflow_crd_object(
 
 
 def test_it():
-    with AbstractOperatorTest(workflow) as test:
+    with AbstractOperatorTest(workflow) as _:
         while True:
             sleep(2)
             wf = get_cr(WFNAME, OPERATOR_NAMESPACE, WorkflowCRD)
@@ -71,10 +71,5 @@ def test_it():
         assert WORKFLOWSTATUS.complete == wf_status
 
         # Check that the data is still intact, after using jinja2 to remove linebreaks
-        collector_output = get_k8s_task_object(wf, "collector")["status"][
-            "outputs"
-        ]["stdout"]
-        assert (
-            collector_output
-            == f"Hello from: {' '.join(global_inputs['siblings'])}"
-        )
+        collector_output = get_k8s_task_object(wf, "collector")["status"]["outputs"]["stdout"]
+        assert collector_output == f"Hello from: {' '.join(global_inputs['siblings'])}"

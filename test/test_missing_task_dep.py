@@ -1,13 +1,12 @@
 from time import sleep
-from unittest import TestCase
+from typing import Any
 
-from kopf._kits.runner import KopfRunner
 from testutil import OPERATOR_NAMESPACE, AbstractOperatorTest, get_cr
 
 from fastflow.helpers import create_workflow_crd_object
 from fastflow.models import WORKFLOWSTATUS, WorkflowCRD
 
-global_inputs = {}
+global_inputs: dict[str, Any] = {}
 
 # list of tasks, yaml + jinja2 expressions
 # language=yaml
@@ -31,7 +30,7 @@ workflow = create_workflow_crd_object(
 
 
 def test_it():
-    with AbstractOperatorTest(workflow) as test:
+    with AbstractOperatorTest(workflow) as _:
         while True:
             sleep(2)
             wf = get_cr(WORKFLOW_NAME, OPERATOR_NAMESPACE, WorkflowCRD)

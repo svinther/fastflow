@@ -1,6 +1,6 @@
 import asyncio
 from time import sleep
-from typing import Optional
+from typing import Any, Optional
 
 from testutil import OPERATOR_NAMESPACE, AbstractOperatorTest, get_cr
 
@@ -10,15 +10,11 @@ from fastflow.models import WORKFLOWSTATUS, WorkflowCRD
 
 
 class TaskThatTakesMultipletAttemptsToComplete(TaskImpl):
-    complete_in_retries: TaskInputInt = 0
+    complete_in_retries: TaskInputInt = 0  # type: ignore
     retries: TaskOutput
 
-    async def complete(
-        self, name, meta, logger, retry, patch, workflow_idx, **_
-    ) -> Optional[TaskResult]:
-        logger.info(
-            f"Task {self.taskmodel.name}: Retry #{retry} - waiting for #{self.complete_in_retries}"
-        )
+    async def complete(self, name, meta, logger, retry, patch, workflow_idx, **_) -> Optional[TaskResult]:
+        logger.info(f"Task {self.taskmodel.name}: Retry #{retry} - waiting for #{self.complete_in_retries}")
         await asyncio.sleep(1.0)
 
         if retry < self.complete_in_retries:
@@ -27,46 +23,34 @@ class TaskThatTakesMultipletAttemptsToComplete(TaskImpl):
         if meta["ownerReferences"][0]["name"] == "workflow-multiworkflow-1":
             wf2body, *_ = workflow_idx["workflow-multiworkflow-2"]
             wf2status = wf2body.status["workflow_status"]
-            assert (
-                wf2status == WORKFLOWSTATUS.blocked.value
-            ), f"workflow2 status should be blocked, it is {wf2status}"
+            assert wf2status == WORKFLOWSTATUS.blocked.value, f"workflow2 status should be blocked, it is {wf2status}"
 
             wf3body, *_ = workflow_idx["workflow-multiworkflow-3"]
             wf3status = wf3body.status["workflow_status"]
-            assert (
-                wf3status == WORKFLOWSTATUS.blocked.value
-            ), f"workflow3 status should be blocked, it is {wf3status}"
+            assert wf3status == WORKFLOWSTATUS.blocked.value, f"workflow3 status should be blocked, it is {wf3status}"
 
         elif meta["ownerReferences"][0]["name"] == "workflow-multiworkflow-2":
             wf1body, *_ = workflow_idx["workflow-multiworkflow-1"]
             wf1status = wf1body.status["workflow_status"]
-            assert (
-                wf1status == WORKFLOWSTATUS.complete.value
-            ), f"workflow1 status should be complete, it is {wf1status}"
+            assert wf1status == WORKFLOWSTATUS.complete.value, f"workflow1 status should be complete, it is {wf1status}"
 
             wf3body, *_ = workflow_idx["workflow-multiworkflow-3"]
             wf3status = wf3body.status["workflow_status"]
-            assert (
-                wf3status == WORKFLOWSTATUS.blocked.value
-            ), f"workflow3 status should be blocked, it is {wf3status}"
+            assert wf3status == WORKFLOWSTATUS.blocked.value, f"workflow3 status should be blocked, it is {wf3status}"
 
         elif meta["ownerReferences"][0]["name"] == "workflow-multiworkflow-3":
             wf1body, *_ = workflow_idx["workflow-multiworkflow-1"]
             wf1status = wf1body.status["workflow_status"]
-            assert (
-                wf1status == WORKFLOWSTATUS.complete.value
-            ), f"workflow1 status should be complete, it is {wf1status}"
+            assert wf1status == WORKFLOWSTATUS.complete.value, f"workflow1 status should be complete, it is {wf1status}"
 
             wf2body, *_ = workflow_idx["workflow-multiworkflow-2"]
             wf2status = wf2body.status["workflow_status"]
-            assert (
-                wf2status == WORKFLOWSTATUS.complete.value
-            ), f"workflow2 status should be complete, it is {wf2status}"
+            assert wf2status == WORKFLOWSTATUS.complete.value, f"workflow2 status should be complete, it is {wf2status}"
 
         return TaskResult(outputs={self.retries: retry})
 
 
-global_inputs = {}
+global_inputs: dict[str, Any] = {}
 
 # language=yaml
 dag1_yaml = """\
@@ -140,12 +124,10 @@ workflow3 = create_workflow_crd_object(
 
 
 def test_it():
-    with AbstractOperatorTest([workflow1, workflow2, workflow3]) as test:
+    with AbstractOperatorTest([workflow1, workflow2, workflow3]) as _:
         while True:
             sleep(2)
-            wf = get_cr(
-                "workflow-multiworkflow-3", OPERATOR_NAMESPACE, WorkflowCRD
-            )
+            wf = get_cr("workflow-multiworkflow-3", OPERATOR_NAMESPACE, WorkflowCRD)
             wf_status_str = wf.get("status", {}).get("workflow_status", None)
             if wf_status_str:
                 wf_status = WORKFLOWSTATUS(wf_status_str)

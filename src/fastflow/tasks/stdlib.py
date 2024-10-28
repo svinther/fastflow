@@ -1,12 +1,6 @@
 from typing import Optional
 
-from fastflow.engine import (
-    TaskImpl,
-    TaskInputList,
-    TaskInputStr,
-    TaskOutput,
-    TaskResult,
-)
+from fastflow.engine import TaskImpl, TaskInputList, TaskOutput, TaskResult
 
 
 class Echo(TaskImpl):
