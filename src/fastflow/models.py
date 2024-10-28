@@ -66,7 +66,7 @@ class TASKSTATUS(Enum):
 
 
 class TaskCRDModel(BaseModel):
-    name: str = Field(regex="^[a-zA-Z_][a-zA-Z0-9_]+$")
+    name: str = Field(pattern="^[a-zA-Z_][a-zA-Z0-9_]+$")
 
 
 class TaskCRD(FastflowCRD):
@@ -145,7 +145,7 @@ class UnknownCRD(BaseException):
 
 
 class Task(BaseModel):
-    name: str = Field(regex="^[a-zA-Z_][a-zA-Z0-9_]+$")
+    name: str = Field(pattern="^[a-zA-Z_][a-zA-Z0-9_]+$")
     impl: str
     inputs: Dict[str, Any] = {}
     dependencies: Optional[List[str]] = None

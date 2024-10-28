@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional, Tuple, Type, Union
 
 import kopf
 from kopf import Body, Logger, Meta, Patch
-from kubernetes_asyncio.client import ApiClient, CustomObjectsApi
 from networkx import descendants, topological_sort
 
 from .crds import create_cr_as_child, set_child_status_on_parent_cr
@@ -22,6 +21,7 @@ from .models import (
     create_status_patch,
     render_workflow_with_jinja2,
 )
+from .setup import get_custom_objects_api
 
 
 class TaskInput:
@@ -63,9 +63,11 @@ class TaskResult:
     finished: bool = True
     outputs: Optional[Dict[TaskOutput, Any]] = None
     message: Optional[str] = None
+    delay_retry: float = 15.0
 
 
 DEFAULT_TASK_RESULT = TaskResult(success=True, finished=True)
+MAX_WORKFLOWS_EXECUTING = 12
 
 
 # Abstract class for implementing arbitrary logic (tasks)
@@ -191,6 +193,18 @@ def _format_statuscounter(statuscounter: Dict[TASKSTATUS, int]) -> str:
     return ", ".join([f"{k.value}:{v}" for k, v in statuscounter.items()])
 
 
+def _get_num_workflows_executing(workflow_idx: kopf.Index):
+    answer = 0
+    for wfname, (wfbody, *_) in workflow_idx.items():
+        wf_status = wfbody.status.get(WorkflowCRD.STATUS_WORKFLOW_STATUS)
+        if wf_status and wf_status in (
+            WORKFLOWSTATUS.executing.value,
+            WORKFLOWSTATUS.pending.value,
+        ):
+            answer += 1
+    return answer
+
+
 def _get_blocking_workflows(
     workflow_crd_model: WorkflowCRDModel, index: kopf.Index, logger
 ):
@@ -229,6 +243,12 @@ async def workflow_create(
     workflow_crd_model = WorkflowCRDModel(**body.spec)
     initial_workflow_status = WORKFLOWSTATUS.pending
 
+    blocked_messages = []
+    if _get_num_workflows_executing(index) >= MAX_WORKFLOWS_EXECUTING:
+        blocked_messages.append(
+            f"Execution blocked by max workflows executing: {MAX_WORKFLOWS_EXECUTING}"
+        )
+
     # Check for workflows we depend on being complete
     blockers = _get_blocking_workflows(workflow_crd_model, index, logger)
     if blockers:
@@ -237,15 +257,18 @@ async def workflow_create(
             f" '{wf}' with status '{wfstatus}'"
             for wf, wfstatus in blockers
         ]
-        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS_MSG] = messages
+        blocked_messages.extend(messages)
+
+    if blocked_messages:
+        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS_MSG] = blocked_messages
         initial_workflow_status = WORKFLOWSTATUS.blocked
 
     logger.info(
         f"Initial status for workflow '{name}': '{initial_workflow_status}'"
     )
-    patch.status[
-        WorkflowCRD.STATUS_WORKFLOW_STATUS
-    ] = initial_workflow_status.value
+    patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = (
+        initial_workflow_status.value
+    )
 
 
 @kopf.on.update(
@@ -261,7 +284,13 @@ async def workflow_completed(
     index = kwargs["workflow_idx"]
 
     # Check if we can move any dependant workflows from blocked to pending
+    num_executing_workflows = _get_num_workflows_executing(index)
+    start_max_workflows = MAX_WORKFLOWS_EXECUTING - num_executing_workflows
+    num_workflows_started = 0
     for wfname, (wfbody, *_) in index.items():
+        if start_max_workflows - num_workflows_started <= 0:
+            break
+
         if (
             WORKFLOWSTATUS(wfbody.status[WorkflowCRD.STATUS_WORKFLOW_STATUS])
             == WORKFLOWSTATUS.blocked
@@ -270,24 +299,21 @@ async def workflow_completed(
                 WorkflowCRDModel(**wfbody.spec), index, logger
             )
             if not blockers:
-                async with ApiClient() as api_client:
-                    api_client.set_default_header(
-                        "Content-Type", "application/merge-patch+json"
-                    )
-                    await CustomObjectsApi(
-                        api_client
-                    ).patch_namespaced_custom_object(
-                        WorkflowCRD.group(),
-                        WorkflowCRD.version(),
-                        namespace,
-                        WorkflowCRD.plural(),
-                        wfbody.metadata.name,
-                        {
-                            "status": {
-                                WorkflowCRD.STATUS_WORKFLOW_STATUS: WORKFLOWSTATUS.pending.value
-                            },
+                await get_custom_objects_api(
+                    mergepatch=True
+                ).patch_namespaced_custom_object(
+                    WorkflowCRD.group(),
+                    WorkflowCRD.version(),
+                    namespace,
+                    WorkflowCRD.plural(),
+                    wfbody.metadata.name,
+                    {
+                        "status": {
+                            WorkflowCRD.STATUS_WORKFLOW_STATUS: WORKFLOWSTATUS.pending.value
                         },
-                    )
+                    },
+                )
+                num_workflows_started += 1
 
 
 @kopf.on.update(
@@ -345,9 +371,9 @@ async def workflow_update(
             )
         )
 
-    patch.status[
-        WorkflowCRD.STATUS_WORKFLOW_STATUS
-    ] = WORKFLOWSTATUS.executing.value
+    patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = (
+        WORKFLOWSTATUS.executing.value
+    )
     patch.status[WorkflowCRD.STATUS_TASKS_SUMMARY] = _format_statuscounter(
         statuscounter
     )
@@ -366,9 +392,9 @@ async def workflow_children_update(
     try:
         G = build_nxdigraph(workflow_model.tasks)
     except WorkflowMalformed as e:
-        patch.status[
-            WorkflowCRD.STATUS_WORKFLOW_STATUS
-        ] = WORKFLOWSTATUS.failed.value
+        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = (
+            WORKFLOWSTATUS.failed.value
+        )
         patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS_MSG] = str(e)
         raise kopf.PermanentError(e)
 
@@ -383,9 +409,9 @@ async def workflow_children_update(
 
     # fail fast
     if task_status_sets[TASKSTATUS.failed]:
-        patch.status[
-            WorkflowCRD.STATUS_WORKFLOW_STATUS
-        ] = WORKFLOWSTATUS.failed.value
+        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = (
+            WORKFLOWSTATUS.failed.value
+        )
         statuscounter = {k: len(v) for k, v in task_status_sets.items() if v}
         patch.status[WorkflowCRD.STATUS_TASKS_SUMMARY] = _format_statuscounter(
             statuscounter
@@ -410,34 +436,29 @@ async def workflow_children_update(
                     f"-->'{TASKSTATUS.ready.value}'"
                 )
 
-                async with ApiClient() as api_client:
-                    api_client.set_default_header(
-                        "Content-Type", "application/merge-patch+json"
-                    )
-
-                    await CustomObjectsApi(
-                        api_client
-                    ).patch_namespaced_custom_object(
-                        TaskCRD.group(),
-                        TaskCRD.version(),
-                        namespace,
-                        TaskCRD.plural(),
-                        task_body.metadata.name,
-                        body={
-                            "spec": task_model.dict(),
-                            "status": {
-                                TaskCRD.STATUS_TASK_STATUS: TASKSTATUS.ready.value
-                            },
+                await get_custom_objects_api(
+                    mergepatch=True
+                ).patch_namespaced_custom_object(
+                    TaskCRD.group(),
+                    TaskCRD.version(),
+                    namespace,
+                    TaskCRD.plural(),
+                    task_body.metadata.name,
+                    body={
+                        "spec": task_model.dict(),
+                        "status": {
+                            TaskCRD.STATUS_TASK_STATUS: TASKSTATUS.ready.value
                         },
-                    )
+                    },
+                )
                 task_status_sets[TASKSTATUS.pending].remove(task_name)
                 task_status_sets[TASKSTATUS.ready].add(task_name)
 
     statuscounter = {k: len(v) for k, v in task_status_sets.items() if v}
     if len(statuscounter) == 1 and TASKSTATUS.complete in statuscounter:
-        patch.status[
-            WorkflowCRD.STATUS_WORKFLOW_STATUS
-        ] = WORKFLOWSTATUS.complete.value
+        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = (
+            WORKFLOWSTATUS.complete.value
+        )
     patch.status[WorkflowCRD.STATUS_TASKS_SUMMARY] = _format_statuscounter(
         statuscounter
     )
@@ -534,8 +555,9 @@ async def execute_task(
 
     if not task_result.finished:
         raise kopf.TemporaryError(
-            f"Task '{task_model.name}' impl: '{task_model.impl}' did not complete, reschedule in 5 secs",
-            delay=5.0,
+            f"Task '{task_model.name}' impl: '{task_model.impl}' did not complete"
+            f", reschedule in {task_result.delay_retry} secs",
+            delay=task_result.delay_retry,
         )
 
     task_outputs = task_result.outputs or {}

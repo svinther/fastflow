@@ -1,7 +1,7 @@
 apiVersion: fastflow.dev/beta-1
 kind: Workflow
 metadata:
-  name: helloworld
+  generateName: helloworld-
 spec:
   dag: |+
     - name: helloworld
