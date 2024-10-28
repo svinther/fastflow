@@ -16,7 +16,7 @@ def create_workflow_crd_object(
 ):
     if global_inputs is None:
         global_inputs = {}
-    elif type(global_inputs) == str:
+    elif type(global_inputs) is str:
         global_inputs = yaml.load(global_inputs, Loader=Loader)
 
     labels = labels or {}

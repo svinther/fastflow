@@ -36,9 +36,7 @@ class Settings(BaseSettings):
     OPERATOR_VERSION: str = Field("unknown")
 
     class Config:
-        env_file = (
-            ".env"  # only used or development, do not commit this file to git
-        )
+        env_file = ".env"  # only used or development, do not commit this file to git
         env_file_encoding = "utf-8"
         case_sensitive = True
 
@@ -84,9 +82,7 @@ async def init(**_):
     _custom_objects_api = CustomObjectsApi(_api_client)
 
     _api_client_mergepatch = ApiClient()
-    _api_client_mergepatch.set_default_header(
-        "Content-Type", "application/merge-patch+json"
-    )
+    _api_client_mergepatch.set_default_header("Content-Type", "application/merge-patch+json")
     _custom_objects_api_mergepatch = CustomObjectsApi(_api_client_mergepatch)
 
 

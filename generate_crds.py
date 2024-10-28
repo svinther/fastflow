@@ -1,6 +1,6 @@
 import json
 import os.path
-from typing import List, Type
+from typing import Any, List, Type
 
 import yaml
 from pydantic import BaseModel
@@ -9,9 +9,10 @@ from yaml import Dumper, Loader
 from fastflow.models import FastflowCRD, TaskCRD, WorkflowCRD
 
 
-def _get_schema_norefs(model: Type[BaseModel]) -> dict:
+def _get_schema_norefs(model: Type[BaseModel]) -> dict[str, Any]:
     """This was copied from https://github.com/samuelcolvin/pydantic/issues/889#issuecomment-850312496
-    The purpose is to eliminate the json_schema $ref references in the generated schema, as this is not allowed in kubernetes crds
+    The purpose is to eliminate the json_schema $ref references in the generated schema
+    , as this is not allowed in kubernetes crds
     """
 
     def replace_value_in_dict(item, original_schema):
@@ -25,15 +26,12 @@ def _get_schema_norefs(model: Type[BaseModel]) -> dict:
                     res = res[definition]
                 return res
             else:
-                return {
-                    key: replace_value_in_dict(i, original_schema)
-                    for key, i in item.items()
-                }
+                return {key: replace_value_in_dict(i, original_schema) for key, i in item.items()}
         else:
             return item
 
     MAX_TRIES = 100
-    schema = model.schema()
+    schema: dict[str, Any] = model.model_json_schema()
     for i in range(MAX_TRIES):
         if "$ref" not in json.dumps(schema):
             break
@@ -83,25 +81,19 @@ spec:
 def render():
     for target in render_targets:
         crd_template: dict = yaml.load(crd_template_yaml, Loader=Loader)
-        crd_template["metadata"][
-            "name"
-        ] = f"{target.plural()}.{target.group()}"
+        crd_template["metadata"]["name"] = f"{target.plural()}.{target.group()}"
         crd_template["spec"]["group"] = target.group()
         crd_template["spec"]["names"]["kind"] = target.kind()
         crd_template["spec"]["names"]["plural"] = target.plural()
         crd_template["spec"]["names"]["singular"] = target.singular()
         crd_template["spec"]["versions"][0]["name"] = target.version()
         if target.model():
-            crd_template["spec"]["versions"][0]["schema"]["openAPIV3Schema"][
-                "properties"
-            ]["spec"] = _get_schema_norefs(target.model())
+            crd_template["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]["spec"] = _get_schema_norefs(
+                target.model()
+            )
         if target.printer_columns():
-            crd_template["spec"]["versions"][0][
-                "additionalPrinterColumns"
-            ] = target.printer_columns()
-        with open(
-            os.path.join(builddir, f"{target.kind()}.yaml"), "w"
-        ) as crd_final_open:
+            crd_template["spec"]["versions"][0]["additionalPrinterColumns"] = target.printer_columns()
+        with open(os.path.join(builddir, f"{target.kind()}.yaml"), "w") as crd_final_open:
             yaml.dump(crd_template, crd_final_open, Dumper=Dumper)
 
 

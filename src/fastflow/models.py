@@ -169,9 +169,7 @@ def build_nxdigraph(task_items: List[Task]) -> DiGraph:
         G.add_node(ti.name)
         for dep_ti_tname in ti.dependencies or []:
             if dep_ti_tname not in task_names:
-                raise WorkflowMalformed(
-                    f"Task '{ti.name}' declares dependency to unknown task '{dep_ti_tname}'"
-                )
+                raise WorkflowMalformed(f"Task '{ti.name}' declares dependency to unknown task '{dep_ti_tname}'")
             G.add_edge(ti.name, dep_ti_tname)
 
     if not is_directed_acyclic_graph(G):
@@ -211,9 +209,7 @@ def to_jsondict(o):
 
 def render_multiple_passes(template: str, **kwargs):
     while True:
-        template_result_ = Template(template, undefined=UNRESOLVED).render(
-            **kwargs
-        )
+        template_result_ = Template(template, undefined=UNRESOLVED).render(**kwargs)
         if template_result_ == template:
             return template_result_
         template = template_result_
@@ -252,10 +248,8 @@ def render_workflow_with_jinja2(
                 ref_task_body, *_ = task_idx[(workflow_name, task.name)]
                 # Update with actual the actual task output values
                 for k, v in ref_task_body.status.get("outputs", {}).items():
-                    task_outputs.setdefault(task.name, {}).setdefault(
-                        "outputs", {}
-                    )[k] = v
-            except KeyError as ke:
+                    task_outputs.setdefault(task.name, {}).setdefault("outputs", {})[k] = v
+            except KeyError:
                 pass
 
     # (4) Render new valid yaml list of tasks, now with the task outputs known
@@ -303,9 +297,7 @@ def create_status_patch(
     return patch
 
 
-def get_namespaced_custom_object_lookup_args(
-    name, namespace, crd: Type[FastflowCRD]
-):
+def get_namespaced_custom_object_lookup_args(name, namespace, crd: Type[FastflowCRD]):
     return {
         "group": crd.group(),
         "version": crd.version(),
@@ -318,14 +310,10 @@ def get_namespaced_custom_object_lookup_args(
 def get_parent_custom_object_lookup_args(child_obj: dict):
     owner_ref = child_obj["metadata"]["ownerReferences"][0]
     parent_crd = get_crd_by_kind(owner_ref["kind"])
-    return get_namespaced_custom_object_lookup_args(
-        owner_ref["name"], child_obj["metadata"]["namespace"], parent_crd
-    )
+    return get_namespaced_custom_object_lookup_args(owner_ref["name"], child_obj["metadata"]["namespace"], parent_crd)
 
 
-def get_create_namespaced_custom_object_lookup_args(
-    namespace, crd: Type[FastflowCRD], body: Optional[dict] = None
-):
+def get_create_namespaced_custom_object_lookup_args(namespace, crd: Type[FastflowCRD], body: Optional[dict] = None):
     body = deepcopy(body or {})
 
     body.update(

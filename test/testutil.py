@@ -45,9 +45,7 @@ class AbstractOperatorTest(KopfRunner):
                     name = manifest.get("metadata", {}).get("name")
                     with ApiClient() as api_client:
                         try:
-                            CustomObjectsApi(
-                                api_client
-                            ).delete_namespaced_custom_object(
+                            CustomObjectsApi(api_client).delete_namespaced_custom_object(
                                 WorkflowCRD.group(),
                                 WorkflowCRD.version(),
                                 OPERATOR_NAMESPACE,
@@ -71,9 +69,7 @@ class AbstractOperatorTest(KopfRunner):
                 with ApiClient() as api_client:
                     WorkflowCRD.kind(),
 
-                    CustomObjectsApi(
-                        api_client
-                    ).create_namespaced_custom_object(
+                    CustomObjectsApi(api_client).create_namespaced_custom_object(
                         WorkflowCRD.group(),
                         WorkflowCRD.version(),
                         OPERATOR_NAMESPACE,

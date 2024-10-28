@@ -1,4 +1,3 @@
-import asyncio
 import base64
 from time import sleep
 from typing import Optional
@@ -34,24 +33,18 @@ class TaskThatOutputsFavoriteFruit(TaskImpl):
 class TaskThatOutputsAllInputs(TaskImpl):
     """This task just returns all its inputs as outputs"""
 
-    optional_input: TaskInputStr = "default_value"
+    optional_input: TaskInputStr = "default_value"  # type: ignore
 
     async def complete(self, **_) -> Optional[TaskResult]:
-        return TaskResult(
-            outputs={TaskOutput(k): v for k, v in self.final_inputs.items()}
-        )
+        return TaskResult(outputs={TaskOutput(k): v for k, v in self.final_inputs.items()})
 
 
 class TaskThatTakesMultipletAttemptsToComplete(TaskImpl):
     complete_in_retries: TaskInputInt
     retries: TaskOutput
 
-    async def complete(
-        self, name, logger, retry, patch, **_
-    ) -> Optional[TaskResult]:
-        logger.info(
-            f"Task {self.taskmodel.name}: Retry #{retry} - waiting for #{self.complete_in_retries}"
-        )
+    async def complete(self, name, logger, retry, patch, **_) -> Optional[TaskResult]:
+        logger.info(f"Task {self.taskmodel.name}: Retry #{retry} - waiting for #{self.complete_in_retries}")
         if retry < self.complete_in_retries:
             return TaskResult(finished=False, message="Im not done yet")
 
@@ -123,12 +116,10 @@ workflow = create_workflow_crd_object(
 
 
 def test_it():
-    with AbstractOperatorTest(workflow) as test:
+    with AbstractOperatorTest(workflow) as _:
         while True:
             sleep(2)
-            wf = get_cr(
-                "workflow-digraph-diamond", OPERATOR_NAMESPACE, WorkflowCRD
-            )
+            wf = get_cr("workflow-digraph-diamond", OPERATOR_NAMESPACE, WorkflowCRD)
             wf_status_str = wf.get("status", {}).get("workflow_status", None)
             if wf_status_str:
                 wf_status = WORKFLOWSTATUS(wf_status_str)
@@ -139,114 +130,57 @@ def test_it():
                     break
 
         assert WORKFLOWSTATUS.complete == wf_status
-        assert (
-            global_inputs["fruit"]
-            == get_k8s_task_object(wf, "dummy001")["status"]["outputs"][
-                "favorite_fruit"
-            ]
-        )
+        assert global_inputs["fruit"] == get_k8s_task_object(wf, "dummy001")["status"]["outputs"]["favorite_fruit"]
 
         # Dummy02 should output its inputs
         assert (
-            get_k8s_task_object(wf, "dummy001")["status"]["outputs"][
-                "favorite_fruit"
-            ]
-            == get_k8s_task_object(wf, "dummy002")["status"]["outputs"][
-                "favorite_fruit"
-            ]
+            get_k8s_task_object(wf, "dummy001")["status"]["outputs"]["favorite_fruit"]
+            == get_k8s_task_object(wf, "dummy002")["status"]["outputs"]["favorite_fruit"]
         )
 
         # Check dummy02 complex output
-        assert (
-            global_inputs["customer"]
-            == get_k8s_task_object(wf, "dummy002")["status"]["outputs"][
-                "customer"
-            ]
-        )
+        assert global_inputs["customer"] == get_k8s_task_object(wf, "dummy002")["status"]["outputs"]["customer"]
 
         # Check using complex output as input 1
         assert (
             global_inputs["customer"]["name"]
-            == get_k8s_task_object(wf, "dummy004")["status"]["outputs"][
-                "listitems"
-            ][0]
+            == get_k8s_task_object(wf, "dummy004")["status"]["outputs"]["listitems"][0]
         )
 
         # Check using complex output as input 2
-        assert (
-            global_inputs["customer"]
-            == get_k8s_task_object(wf, "dummy004")["status"]["outputs"][
-                "listitems"
-            ][1]
-        )
+        assert global_inputs["customer"] == get_k8s_task_object(wf, "dummy004")["status"]["outputs"]["listitems"][1]
 
         # Check using output from another ancestor
         assert (
-            get_k8s_task_object(wf, "dummy003")["spec"]["inputs"][
-                "complete_in_retries"
-            ]
-            == get_k8s_task_object(wf, "dummy004")["status"]["outputs"][
-                "listitems"
-            ][2]
+            get_k8s_task_object(wf, "dummy003")["spec"]["inputs"]["complete_in_retries"]
+            == get_k8s_task_object(wf, "dummy004")["status"]["outputs"]["listitems"][2]
         )
 
         # Check string interpolation
-        dummy03_retries = get_k8s_task_object(wf, "dummy003")["spec"][
-            "inputs"
-        ]["complete_in_retries"]
+        dummy03_retries = get_k8s_task_object(wf, "dummy003")["spec"]["inputs"]["complete_in_retries"]
         assert (
             f'{dummy03_retries} {global_inputs["customer"]["region"]}'
-            == get_k8s_task_object(wf, "dummy004")["status"]["outputs"][
-                "listitems"
-            ][3]
+            == get_k8s_task_object(wf, "dummy004")["status"]["outputs"]["listitems"][3]
         )
 
         # Check we can handle multiline
-        dummy002_multiline_input = get_k8s_task_object(wf, "dummy002")["spec"][
-            "inputs"
-        ]["multiline"]
-        dummy002_multiline_input_b64dec = base64.b64decode(
-            dummy002_multiline_input
-        )
+        dummy002_multiline_input = get_k8s_task_object(wf, "dummy002")["spec"]["inputs"]["multiline"]
+        dummy002_multiline_input_b64dec = base64.b64decode(dummy002_multiline_input)
 
         # This should be fine, as it never passed throught jinja2 rendering
-        dummy002_multiline_output = get_k8s_task_object(wf, "dummy002")[
-            "status"
-        ]["outputs"]["multiline"]
-        dummy002_multiline_output_b64dec = base64.b64decode(
-            dummy002_multiline_output
-        )
-        assert (
-            dummy002_multiline_input_b64dec == dummy002_multiline_output_b64dec
-        )
+        dummy002_multiline_output = get_k8s_task_object(wf, "dummy002")["status"]["outputs"]["multiline"]
+        dummy002_multiline_output_b64dec = base64.b64decode(dummy002_multiline_output)
+        assert dummy002_multiline_input_b64dec == dummy002_multiline_output_b64dec
 
         # This output was jinja2 rendered
-        dummy004_multiline_output = get_k8s_task_object(wf, "dummy004")[
-            "status"
-        ]["outputs"]["multiline"]
-        dummy004_multiline_output_b64dec = base64.b64decode(
-            dummy004_multiline_output
-        )
-        assert (
-            dummy002_multiline_input_b64dec == dummy004_multiline_output_b64dec
-        )
+        dummy004_multiline_output = get_k8s_task_object(wf, "dummy004")["status"]["outputs"]["multiline"]
+        dummy004_multiline_output_b64dec = base64.b64decode(dummy004_multiline_output)
+        assert dummy002_multiline_input_b64dec == dummy004_multiline_output_b64dec
 
         # Check that the data is still intact, after using jinja2 to remove linebreaks
-        dummy004_lbr_replaced_output = get_k8s_task_object(wf, "dummy004")[
-            "status"
-        ]["outputs"]["lbr_replaced"]
-        dummy004_lbr_replaced_output_b64dec = base64.b64decode(
-            dummy004_lbr_replaced_output
-        )
-        assert (
-            dummy002_multiline_input_b64dec
-            == dummy004_lbr_replaced_output_b64dec
-        )
+        dummy004_lbr_replaced_output = get_k8s_task_object(wf, "dummy004")["status"]["outputs"]["lbr_replaced"]
+        dummy004_lbr_replaced_output_b64dec = base64.b64decode(dummy004_lbr_replaced_output)
+        assert dummy002_multiline_input_b64dec == dummy004_lbr_replaced_output_b64dec
 
-        dummy004_optional_input_value = get_k8s_task_object(wf, "dummy004")[
-            "status"
-        ]["outputs"]["optional_input"]
-        assert (
-            TaskThatOutputsAllInputs.optional_input
-            == dummy004_optional_input_value
-        )
+        dummy004_optional_input_value = get_k8s_task_object(wf, "dummy004")["status"]["outputs"]["optional_input"]
+        assert TaskThatOutputsAllInputs.optional_input == dummy004_optional_input_value
