@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import click
 import kopf
+from kopf._cogs.helpers import loaders
 
 _kopf_kwargs: Dict[str, Any] = {}
 _kopg_args: List[str]
@@ -61,6 +62,8 @@ def main() -> None:
 @click.option("--dev", "priority", type=int, is_flag=True, flag_value=666)
 @click.option("-p", "--priority", type=int)
 @click.option("-v", "--verbose", is_flag=True)
+@click.option("-m", "--module", "modules", multiple=True)
+@click.argument("paths", nargs=-1)
 @click.option(
     "-L",
     "--liveness",
@@ -74,6 +77,8 @@ def run(
     clusterwide: bool,
     verbose: bool,
     liveness_endpoint: str,
+    paths: List[str],
+    modules: List[str],
 ) -> None:
     _kopf_kwargs.update(
         dict(
@@ -86,5 +91,10 @@ def run(
 
     if verbose:
         kopf.configure(verbose=True)
+
+    loaders.preload(
+        paths=paths,
+        modules=modules,
+    )
 
     run_kopf_in_separate_thread()

@@ -21,17 +21,17 @@ os.environ["OPERATOR_NAMESPACE"] = OPERATOR_NAMESPACE
 
 
 class AbstractOperatorTest(KopfRunner):
-    def __init__(self, manifests: Union[dict, List[dict]] = None):
-        super().__init__(
-            [
-                "run",
-                "-m",
-                "fastflow",
-                "--peering=test",
-                "--namespace",
-                OPERATOR_NAMESPACE,
-            ]
-        )
+    def __init__(self, manifests: Union[dict, List[dict]] = None, paths: List[str] = None):
+        kopf_args = [
+            "run",
+            "-m",
+            "fastflow",
+            "--peering=test",
+            "--namespace",
+            OPERATOR_NAMESPACE,
+        ] + (paths or [])
+
+        super().__init__(kopf_args)
 
         if manifests:
             if isinstance(manifests, List):
@@ -40,10 +40,10 @@ class AbstractOperatorTest(KopfRunner):
                 self.manifests = [manifests]
 
         if self.manifests:
-            for manifest in self.manifests:
-                if manifest.get("metadata", {}).get("name"):
-                    name = manifest.get("metadata", {}).get("name")
-                    with ApiClient() as api_client:
+            with ApiClient() as api_client:
+                for manifest in self.manifests:
+                    if manifest.get("metadata", {}).get("name"):
+                        name = manifest.get("metadata", {}).get("name")
                         try:
                             CustomObjectsApi(api_client).delete_namespaced_custom_object(
                                 WorkflowCRD.group(),
@@ -58,15 +58,16 @@ class AbstractOperatorTest(KopfRunner):
 
     def __enter__(self) -> "KopfRunner":
         if self.manifests:
-            for manifest in self.manifests:
-                body = deepcopy(manifest)
-                body.update(
-                    {
-                        "kind": WorkflowCRD.kind(),
-                        "apiVersion": f"{WorkflowCRD.group()}/{WorkflowCRD.version()}",
-                    }
-                )
-                with ApiClient() as api_client:
+            with ApiClient() as api_client:
+                for manifest in self.manifests:
+                    body = deepcopy(manifest)
+                    body.update(
+                        {
+                            "kind": WorkflowCRD.kind(),
+                            "apiVersion": f"{WorkflowCRD.group()}/{WorkflowCRD.version()}",
+                        }
+                    )
+
                     WorkflowCRD.kind(),
 
                     CustomObjectsApi(api_client).create_namespaced_custom_object(
@@ -76,7 +77,7 @@ class AbstractOperatorTest(KopfRunner):
                         WorkflowCRD.plural(),
                         body,
                     )
-        return super().__enter__()
+            return super().__enter__()
 
 
 def get_cr(name, namespace, crd: Type[FastflowCRD]):
