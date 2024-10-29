@@ -1,18 +1,10 @@
-import base64
 import pathlib
 from time import sleep
-from typing import Optional
 
-from testutil import (
-    OPERATOR_NAMESPACE,
-    AbstractOperatorTest,
-    get_cr,
-    get_k8s_task_object,
-)
+from testutil import OPERATOR_NAMESPACE, AbstractOperatorTest, get_cr
 
 from fastflow.helpers import create_workflow_crd_object
 from fastflow.models import WORKFLOWSTATUS, WorkflowCRD
-
 
 # language=yaml
 dag_yaml = """\
@@ -32,7 +24,9 @@ workflow = create_workflow_crd_object(
 
 
 def test_it():
-    with AbstractOperatorTest(workflow, paths=[str(pathlib.Path(__file__).parents[0] / "customtasks" / "testtasks.py")]) as _:
+    with AbstractOperatorTest(
+        workflow, paths=[str(pathlib.Path(__file__).parents[0] / "customtasks" / "testtasks.py")]
+    ) as _:
         while True:
             sleep(2)
             wf = get_cr(WFNAME, OPERATOR_NAMESPACE, WorkflowCRD)
