@@ -119,7 +119,7 @@ def test_it():
     with AbstractOperatorTest(workflow) as _:
         while True:
             sleep(2)
-            wf = get_cr("workflow-digraph-diamond", OPERATOR_NAMESPACE, WorkflowCRD)
+            wf = get_cr(WFNAME, OPERATOR_NAMESPACE, WorkflowCRD)
             wf_status_str = wf.get("status", {}).get("workflow_status", None)
             if wf_status_str:
                 wf_status = WORKFLOWSTATUS(wf_status_str)
