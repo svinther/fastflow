@@ -9,6 +9,14 @@ kubectl create ns fastflow
 helm -n fastflow upgrade --install fastflow chart
 ```
 
+To install in more namespasces, create the namespace and run the helm command again, this time with the
+`--skip-crds` flag.
+
+```shell
+kubectl create ns fastflow-dev
+helm -n fastflow-dev upgrade --install fastflow chart --skip-crds
+```
+
 ## Run examples
 
 Apply examples
@@ -126,15 +134,28 @@ python3 -m pip install build
 python3 -m build
 ```
 
-Build Docker image
+Build Docker image using minikube
 
 ```shell
 eval $(minikube -p minikube docker-env)
 DOCKER_BUILDKIT=1 docker build -t fastflow .
 ```
 
-Use helm to run the image in Kubernetes
+Use helm to run the image in Kubernetes, by specifying the image tag we just created
 
 ```shell
 helm -n fastflow-dev upgrade --install --set imageOverride=fastflow fastflow chart
+```
+
+### Examples using custom Task implementations
+
+The Operator needs to be able to load the custom code. Here is an example using the `examples/03-farmlife` example
+workflow. This workflow uses custom tasks implemented in `examples/03-farmlife/tasks-impl/farmlife.py`.
+
+#### Run the operator locally
+
+Run the operator so it can load the custom code
+
+```shell
+fastflow --dev --namespace fastflow-dev examples/03-farmlife/tasks-impl/farmlife.py
 ```

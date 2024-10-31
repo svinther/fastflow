@@ -1,0 +1,57 @@
+apiVersion: fastflow.dev/beta-1
+kind: Workflow
+metadata:
+  generateName: farmlife
+spec:
+  dag: |2+
+    {% for n in range(5) %}    
+    - name: a{{ n }}
+      impl: farmlife.DoSomeWork
+      inputs: 
+        complexinput: {{ initial_list }}
+    {% endfor %}
+    
+    {% for n in range(5) %}
+    {% for m in range(2) %}
+    - name: b{{ n }}_{{ m }}
+      impl: farmlife.DoSomeWork
+      inputs: 
+        complexinput: {{  tasks["a"~n].outputs.complexoutput }}
+      dependencies:
+        - a{{ n }}
+    {% endfor %}
+    {% endfor %}
+
+    - name: finisher
+      impl: farmlife.DoSomeWork
+      inputs: 
+        complexinput: 
+        {% for n in range(5) %}
+        {% for m in range(2) %}
+          - {{  tasks["b"~n~"_"~m].outputs.complexoutput }}
+        {% endfor %}
+        {% endfor %}
+      dependencies:
+      {% for n in range(5) %}
+      {% for m in range(2) %}
+        - b{{ n }}_{{ m }}
+      {% endfor %}
+      {% endfor %}
+    
+
+  dependencies: null
+  global_inputs:
+    initial_list:
+      - animal: cow
+        name: Bessie
+        unicode: 🐮
+      - animal: pig
+        name: Babe
+        unicode: 🐷
+      - animal: sheep
+        name: Dolly
+        unicode: 🐑
+      - animal: ducks
+        name: Donald
+        unicode: 🦆🦆🦆🦆🦆🦆🦆🦆🦆🦆
+        
