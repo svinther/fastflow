@@ -4,18 +4,18 @@ metadata:
   generateName: farmlife
 spec:
   dag: |2+
-    {% for n in range(5) %}    
+    {% for n in range(5) %}
     - name: a{{ n }}
       impl: farmlife.DoSomeWork
-      inputs: 
+      inputs:
         complexinput: {{ initial_list }}
     {% endfor %}
-    
+
     {% for n in range(5) %}
     {% for m in range(2) %}
     - name: b{{ n }}_{{ m }}
       impl: farmlife.DoSomeWork
-      inputs: 
+      inputs:
         complexinput: {{  tasks["a"~n].outputs.complexoutput }}
       dependencies:
         - a{{ n }}
@@ -24,8 +24,8 @@ spec:
 
     - name: finisher
       impl: farmlife.DoSomeWork
-      inputs: 
-        complexinput: 
+      inputs:
+        complexinput:
         {% for n in range(5) %}
         {% for m in range(2) %}
           - {{  tasks["b"~n~"_"~m].outputs.complexoutput }}
@@ -37,7 +37,7 @@ spec:
         - b{{ n }}_{{ m }}
       {% endfor %}
       {% endfor %}
-    
+
 
   dependencies: null
   global_inputs:
@@ -54,4 +54,3 @@ spec:
       - animal: ducks
         name: Donald
         unicode: 🦆🦆🦆🦆🦆🦆🦆🦆🦆🦆
-        

@@ -3,19 +3,18 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastflow.engine import TaskInputList, TaskOutput, TaskImpl, TaskResult
+from fastflow.engine import TaskImpl, TaskInputList, TaskOutput, TaskResult
 
 log = logging.getLogger(__name__)
 
 
 class DoSomeWork(TaskImpl):
     """This task does some work. Lots of farm animals are involved."""
+
     complexinput: TaskInputList
     complexoutput: TaskOutput
 
-    async def complete(
-        self, meta, status, patch, logger, retry, **_
-    ) -> Optional[TaskResult]:
+    async def complete(self, meta, status, patch, logger, retry, **_) -> Optional[TaskResult]:
         internalstate = status.get("internalstate", {})
         attempts = internalstate.get("attempts", "")
         if retry < 2:
@@ -27,8 +26,7 @@ class DoSomeWork(TaskImpl):
             patch.status["internalstate"] = {"attempts": attempts}
             return TaskResult(
                 finished=False,
-                message=f"Did not do any work, but will try again"
-                f"Current retries: {retry}",
+                message=f"Did not do any work, but will try again" f"Current retries: {retry}",
             )
 
         thelist = self.complexinput
@@ -47,5 +45,5 @@ class DoSomeWork(TaskImpl):
 
         return TaskResult(
             outputs={self.complexoutput: thelist},
-            message=f"Successfully did some work",
+            message="Successfully did some work",
         )
