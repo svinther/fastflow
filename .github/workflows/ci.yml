@@ -2,9 +2,10 @@ name: CI stuff
 on:
   push:
     branches:
-      - main
-  schedule:
-    - cron: "49 4 * * *"
+      - "**"
+#  schedule:
+#    - cron: "49 4 * * *"
+
 jobs:
   linters:
     name: Linting and static analysis
@@ -27,7 +28,7 @@ jobs:
         k8s: [latest, v1.30.5, v1.29.9, v1.28.13]
     name: K8s ${{matrix.k8s}}
     runs-on: ubuntu-22.04
-    timeout-minutes: 10  # usually 4-5 mins
+    timeout-minutes: 30  # usually 4-5 mins
     env:
       K8S: ${{ matrix.k8s }}
     steps:

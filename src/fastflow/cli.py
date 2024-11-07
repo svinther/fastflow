@@ -3,14 +3,13 @@ import contextlib
 import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import click
 import kopf
 from kopf._cogs.helpers import loaders
 
-_kopf_kwargs: Dict[str, Any] = {}
-_kopg_args: List[str]
+from fastflow.setup import get_appsettings
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,9 @@ def kopf_thread(
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     with contextlib.closing(loop):
-        loop.run_until_complete(kopf.operator(ready_flag=ready_flag, stop_flag=stop_flag, **_kopf_kwargs))
+        loop.run_until_complete(
+            kopf.operator(ready_flag=ready_flag, stop_flag=stop_flag, **get_appsettings().get_kopf_kwargs())
+        )
 
 
 def run_kopf_in_separate_thread():
@@ -38,12 +39,10 @@ def run_kopf_in_separate_thread():
     )
     thread.start()
     ready_flag.wait()
-    logger.info("Kopf is running...")
     while True:
         try:
             time.sleep(60)
         except KeyboardInterrupt:
-            logger.info("Kopf is stopping...")
             stop_flag.set()
             break
 
@@ -57,41 +56,24 @@ def main() -> None:
 
 
 @main.command()
-@click.option("-A", "--all-namespaces", "clusterwide", is_flag=True)
-@click.option("-n", "--namespace", "namespaces", multiple=True)
+@click.option("-n", "--namespace", "namespace", multiple=False)
 @click.option("--dev", "priority", type=int, is_flag=True, flag_value=666)
 @click.option("-p", "--priority", type=int)
-@click.option("-v", "--verbose", is_flag=True)
 @click.option("-m", "--module", "modules", multiple=True)
 @click.argument("paths", nargs=-1)
-@click.option(
-    "-L",
-    "--liveness",
-    "liveness_endpoint",
-    type=str,
-    default="http://0.0.0.0:8080/healthz",
-)
 def run(
     priority: Optional[int],
-    namespaces: List[str],
-    clusterwide: bool,
-    verbose: bool,
-    liveness_endpoint: str,
+    namespace: str,
     paths: List[str],
     modules: List[str],
 ) -> None:
-    _kopf_kwargs.update(
-        dict(
-            priority=priority,
-            namespaces=namespaces,
-            clusterwide=clusterwide,
-            liveness_endpoint=liveness_endpoint,
-        )
-    )
+    get_appsettings().namespace = namespace
+    if priority is not None:
+        get_appsettings().kopf_priority = priority
 
-    if verbose:
-        kopf.configure(verbose=True)
+    # kopf.configure(verbose=True)  # log formatting
 
+    loaders.preload(paths=[], modules=["fastflow.engine"])
     loaders.preload(
         paths=paths,
         modules=modules,
