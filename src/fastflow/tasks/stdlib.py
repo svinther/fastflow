@@ -1,6 +1,13 @@
+import asyncio
 from typing import Optional
 
-from fastflow.engine import TaskImpl, TaskInputList, TaskOutput, TaskResult
+from fastflow.engine import (
+    TaskImpl,
+    TaskInputFloat,
+    TaskInputList,
+    TaskOutput,
+    TaskResult,
+)
 
 
 class Echo(TaskImpl):
@@ -9,3 +16,11 @@ class Echo(TaskImpl):
 
     async def complete(self, **_) -> Optional[TaskResult]:
         return TaskResult(outputs={self.stdout: "".join(self.args)})
+
+
+class Sleep(TaskImpl):
+    seconds: TaskInputFloat
+
+    async def complete(self, **_) -> Optional[TaskResult]:
+        await asyncio.sleep(self.seconds)
+        return None

@@ -10,7 +10,7 @@ from kubernetes_asyncio.config import (
     load_kube_config,
 )
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logging.basicConfig(level=logging.INFO)
 
@@ -34,14 +34,32 @@ def get_custom_objects_api(mergepatch: bool = False):
 
 class Settings(BaseSettings):
     OPERATOR_VERSION: str = Field("unknown")
+    max_parallel_workflows: int = 12
 
-    class Config:
-        env_file = ".env"  # only used or development, do not commit this file to git
-        env_file_encoding = "utf-8"
-        case_sensitive = True
+    namespace: str = "default"
+    kopf_liveness_endpoint: str = "http://0.0.0.0:8080/healthz"
+    kopf_priority: int = 666
+
+    kopf_handler_retry_default_delay: float = 15.0
+
+    model_config = SettingsConfigDict(env_file_encoding="utf-8", case_sensitive=True)
+
+    def get_kopf_kwargs(self) -> dict:
+        return dict(
+            priority=self.kopf_priority,
+            namespaces=[self.namespace],
+            clusterwide=False,
+            liveness_endpoint=self.kopf_liveness_endpoint,
+        )
 
 
-appsettings = Settings()
+_appsettings = Settings()
+
+
+def get_appsettings() -> Settings:
+    global _appsettings
+    return _appsettings
+
 
 try:
     __version__ = version("package-name")
@@ -57,7 +75,7 @@ def get_operator_version(**kwargs):
 
 @kopf.on.startup()
 async def configure(settings: kopf.OperatorSettings, **_):
-    settings.posting.level = logging.INFO
+    settings.posting.level = logging.WARNING
     settings.execution.max_workers = 50
     settings.networking.connect_timeout = 20
     settings.networking.request_timeout = 90

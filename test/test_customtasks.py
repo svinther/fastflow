@@ -1,7 +1,7 @@
 import pathlib
 from time import sleep
 
-from testutil import OPERATOR_NAMESPACE, AbstractOperatorTest, get_cr
+from testutil import AbstractOperatorTest, get_cr
 
 from fastflow.helpers import create_workflow_crd_object
 from fastflow.models import WORKFLOWSTATUS, WorkflowCRD
@@ -29,7 +29,7 @@ def test_it():
     ) as _:
         while True:
             sleep(2)
-            wf = get_cr(WFNAME, OPERATOR_NAMESPACE, WorkflowCRD)
+            wf = get_cr(WFNAME, WorkflowCRD)
             wf_status_str = wf.get("status", {}).get("workflow_status", None)
             if wf_status_str:
                 wf_status = WORKFLOWSTATUS(wf_status_str)

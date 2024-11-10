@@ -2,12 +2,7 @@ import base64
 from time import sleep
 from typing import Optional
 
-from testutil import (
-    OPERATOR_NAMESPACE,
-    AbstractOperatorTest,
-    get_cr,
-    get_k8s_task_object,
-)
+from testutil import AbstractOperatorTest, get_cr, get_k8s_task_object
 
 from fastflow.engine import (
     TaskImpl,
@@ -119,7 +114,7 @@ def test_it():
     with AbstractOperatorTest(workflow) as _:
         while True:
             sleep(2)
-            wf = get_cr(WFNAME, OPERATOR_NAMESPACE, WorkflowCRD)
+            wf = get_cr(WFNAME, WorkflowCRD)
             wf_status_str = wf.get("status", {}).get("workflow_status", None)
             if wf_status_str:
                 wf_status = WORKFLOWSTATUS(wf_status_str)

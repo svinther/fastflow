@@ -173,7 +173,7 @@ def build_nxdigraph(task_items: List[Task]) -> DiGraph:
             G.add_edge(ti.name, dep_ti_tname)
 
     if not is_directed_acyclic_graph(G):
-        raise WorkflowMalformed("Not an acyclic graph")
+        raise WorkflowMalformed("Not a directed acyclic graph")
     return G
 
 
