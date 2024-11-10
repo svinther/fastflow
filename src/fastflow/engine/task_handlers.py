@@ -3,14 +3,22 @@ import json
 import kopf
 from kubernetes_asyncio.client import ApiException
 
-from fastflow.engine.models import get_class, TaskResult
+from fastflow.engine.models import TaskResult, get_class
 from fastflow.engine.utils import _get_owner_digraph_name
 from fastflow.kubernetes import set_child_status_on_parent_cr
-
-from fastflow.models import TaskCRD, WorkflowCRD, TASKSTATUS, Task, WORKFLOWSTATUS, UNRESOLVED, WorkflowMalformed
+from fastflow.models import (
+    TASKSTATUS,
+    UNRESOLVED,
+    WORKFLOWSTATUS,
+    Task,
+    TaskCRD,
+    WorkflowCRD,
+    WorkflowMalformed,
+)
 from fastflow.setup import get_appsettings
 
 DEFAULT_TASK_RESULT = TaskResult(success=True, finished=True)
+
 
 @kopf.index(TaskCRD.plural())
 async def task_idx(body: kopf.Body, spec, meta, **_):

@@ -1,6 +1,6 @@
-from typing import Dict, Any, Tuple
+from typing import Any, Dict, Tuple
 
-from fastflow.models import WorkflowMalformed, WorkflowCRD
+from fastflow.models import WorkflowCRD, WorkflowMalformed
 
 
 def _get_dict_value(data: Dict[str, Any], valuepath: Tuple, fullpath: Tuple[str]):

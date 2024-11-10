@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, Type, Union, Tuple
+from typing import Any, Dict, Optional, Tuple, Type, Union
 
 from fastflow.models import Task, WorkflowMalformed
 

@@ -4,13 +4,24 @@ from typing import Optional
 
 import kopf
 from kopf import Body, Logger, Patch
-from networkx import topological_sort, descendants
+from networkx import descendants, topological_sort
 
-from fastflow.models import WorkflowCRD, WorkflowCRDModel, WORKFLOWSTATUS, render_workflow_with_jinja2, TASKSTATUS, \
-    TaskCRD, build_nxdigraph, WorkflowMalformed
-from fastflow.kubernetes import create_status_patch, create_cr_as_child
+from fastflow.kubernetes import (
+    create_cr_as_child,
+    create_status_patch,
+    get_custom_objects_api,
+)
+from fastflow.models import (
+    TASKSTATUS,
+    WORKFLOWSTATUS,
+    TaskCRD,
+    WorkflowCRD,
+    WorkflowCRDModel,
+    WorkflowMalformed,
+    build_nxdigraph,
+    render_workflow_with_jinja2,
+)
 from fastflow.setup import get_appsettings
-from fastflow.kubernetes import get_custom_objects_api
 
 
 def _format_statuscounter(statuscounter: dict[TASKSTATUS, int]) -> str:
@@ -67,8 +78,8 @@ async def startup_fn(logger, **kwargs):
         status = wf.get("status", {})
         wf_status = status.get(WorkflowCRD.STATUS_WORKFLOW_STATUS)
         if wf_status and wf_status in (
-                WORKFLOWSTATUS.executing.value,
-                WORKFLOWSTATUS.pending.value,
+            WORKFLOWSTATUS.executing.value,
+            WORKFLOWSTATUS.pending.value,
         ):
             _GLOBAL_ACTIVE_WORKFLOWS.add((wf["metadata"]["namespace"], wf["metadata"]["name"]))
 
@@ -305,4 +316,3 @@ async def workflow_delete(namespace, name, logger, **kwargs):
         _GLOBAL_ACTIVE_WORKFLOWS.discard((namespace, name))
         index = kwargs["workflow_idx"]
         await _activate_blocked_workflows(index, namespace, logger)
-

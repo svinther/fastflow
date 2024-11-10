@@ -4,7 +4,7 @@ from typing import Optional
 
 from testutil import AbstractOperatorTest, get_cr, get_k8s_task_object
 
-from fastflow.engine.models import (
+from fastflow import (
     TaskImpl,
     TaskInputInt,
     TaskInputStr,
