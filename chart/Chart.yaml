@@ -3,6 +3,6 @@ name: fastflow
 description: A Helm chart for Kubernetes deployment of Fastflow
 
 type: application
-version: 0.1.0
+version: 0.4.0
 
-appVersion: "0.0.3"
+appVersion: 0.4.0

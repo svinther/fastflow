@@ -3,7 +3,7 @@ from typing import Any
 
 from testutil import AbstractOperatorTest, get_cr
 
-from fastflow.helpers import create_workflow_crd_object
+from fastflow.kubernetes import create_workflow_crd_object
 from fastflow.models import WORKFLOWSTATUS, WorkflowCRD
 
 global_inputs: dict[str, Any] = {}

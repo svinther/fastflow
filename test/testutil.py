@@ -79,11 +79,10 @@ class AbstractOperatorTest(KopfRunner):
     def __init__(self, manifests: Union[dict, List[dict]] = None, paths: List[str] = None):
         get_appsettings().namespace = OPERATOR_NAMESPACE
         get_appsettings().kopf_handler_retry_default_delay = 0.2
+        import fastflow  # noqa
 
         kopf_args = [
             "run",
-            "-m",
-            "fastflow.engine",
             "--peering=test",
             "--namespace",
             OPERATOR_NAMESPACE,
