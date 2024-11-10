@@ -1,4 +1,4 @@
-FROM python:3.11.10-slim-bookworm
+FROM python:3.12.7-slim-bookworm
 
 LABEL org.opencontainers.image.authors="svinther@gmail.com"
 LABEL vendor="fastflow.dev"
