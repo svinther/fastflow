@@ -1,7 +1,7 @@
 import asyncio
 from typing import Optional
 
-from fastflow.engine import TaskImpl, TaskInputFloat, TaskResult
+from fastflow.engine.models import TaskImpl, TaskInputFloat, TaskResult
 
 
 class Sleep(TaskImpl):

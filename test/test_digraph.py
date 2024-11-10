@@ -4,14 +4,14 @@ from typing import Optional
 
 from testutil import AbstractOperatorTest, get_cr, get_k8s_task_object
 
-from fastflow.engine import (
+from fastflow.engine.models import (
     TaskImpl,
     TaskInputInt,
     TaskInputStr,
     TaskOutput,
     TaskResult,
 )
-from fastflow.helpers import create_workflow_crd_object
+from fastflow.kubernetes import create_workflow_crd_object
 from fastflow.models import WORKFLOWSTATUS, WorkflowCRD
 
 

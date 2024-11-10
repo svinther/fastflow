@@ -11,8 +11,8 @@ from testutil import (
     get_crs,
 )
 
-from fastflow.engine import TaskImpl, TaskResult
-from fastflow.helpers import create_workflow_crd_object
+from fastflow.engine.models import TaskImpl, TaskResult
+from fastflow.kubernetes import create_workflow_crd_object
 from fastflow.models import WORKFLOWSTATUS, WorkflowCRD
 from fastflow.setup import get_appsettings
 

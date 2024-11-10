@@ -1,5 +1,4 @@
 import json
-from copy import deepcopy
 from enum import Enum, unique
 from typing import Any, Dict, List, Optional, Type
 
@@ -274,60 +273,3 @@ def get_crd_by_kind(kind: str) -> Type[FastflowCRD]:
         if crd.kind() == kind:
             return crd
     raise UnknownCRD(f"Unknown kind '{kind}'")
-
-
-def create_status_patch(
-    obj,
-    success: bool,
-    finished: bool,
-    extra_fields: Optional[dict] = None,
-    message: Optional[str] = None,
-) -> dict:
-    patch = {
-        obj["metadata"]["uid"]: {
-            "kind": obj["kind"],
-            "name": obj["metadata"]["name"],
-            "success": success,
-            "finished": finished,
-            "message": message,
-        }
-    }
-    if extra_fields:
-        patch[obj["metadata"]["uid"]].update(extra_fields)
-    return patch
-
-
-def get_namespaced_custom_object_lookup_args(name, namespace, crd: Type[FastflowCRD]):
-    return {
-        "group": crd.group(),
-        "version": crd.version(),
-        "plural": crd.plural(),
-        "name": name,
-        "namespace": namespace,
-    }
-
-
-def get_parent_custom_object_lookup_args(child_obj: dict):
-    owner_ref = child_obj["metadata"]["ownerReferences"][0]
-    parent_crd = get_crd_by_kind(owner_ref["kind"])
-    return get_namespaced_custom_object_lookup_args(owner_ref["name"], child_obj["metadata"]["namespace"], parent_crd)
-
-
-def get_create_namespaced_custom_object_lookup_args(namespace, crd: Type[FastflowCRD], body: Optional[dict] = None):
-    body = deepcopy(body or {})
-
-    body.update(
-        {
-            "kind": crd.kind(),
-            "apiVersion": f"{crd.group()}/{crd.version()}",
-        }
-    )
-
-    return {
-        "group": crd.group(),
-        "version": crd.version(),
-        "plural": crd.plural(),
-        "kind": crd.kind(),
-        "namespace": namespace,
-        "body": body,
-    }

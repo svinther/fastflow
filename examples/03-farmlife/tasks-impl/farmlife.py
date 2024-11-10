@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastflow.engine import TaskImpl, TaskInputList, TaskOutput, TaskResult
+from fastflow import TaskImpl, TaskInputList, TaskOutput, TaskResult
 
 log = logging.getLogger(__name__)
 

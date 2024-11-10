@@ -1,9 +1,11 @@
+"""Kopf handlers for Workflow CRD"""
+
 import pathlib
 from time import sleep
 
 from testutil import AbstractOperatorTest, get_cr
 
-from fastflow.helpers import create_workflow_crd_object
+from fastflow.kubernetes import create_workflow_crd_object
 from fastflow.models import WORKFLOWSTATUS, WorkflowCRD
 
 # language=yaml

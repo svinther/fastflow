@@ -56,24 +56,27 @@ def main() -> None:
 
 
 @main.command()
-@click.option("-n", "--namespace", "namespace", multiple=False)
+@click.option("-n", "--namespace", "namespace", multiple=False, required=True)
 @click.option("--dev", "priority", type=int, is_flag=True, flag_value=666)
 @click.option("-p", "--priority", type=int)
 @click.option("-m", "--module", "modules", multiple=True)
+@click.option("-r", "--handler-retry-delay", "kopf_handler_retry_default_delay", required=False, type=float)
 @click.argument("paths", nargs=-1)
 def run(
     priority: Optional[int],
     namespace: str,
     paths: List[str],
     modules: List[str],
+    kopf_handler_retry_default_delay: Optional[float] = None,
 ) -> None:
     get_appsettings().namespace = namespace
     if priority is not None:
         get_appsettings().kopf_priority = priority
+    if kopf_handler_retry_default_delay is not None:
+        get_appsettings().kopf_handler_retry_default_delay = kopf_handler_retry_default_delay
 
     # kopf.configure(verbose=True)  # log formatting
 
-    loaders.preload(paths=[], modules=["fastflow.engine"])
     loaders.preload(
         paths=paths,
         modules=modules,
