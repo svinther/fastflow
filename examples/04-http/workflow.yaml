@@ -1,0 +1,18 @@
+apiVersion: fastflow.dev/beta-1
+kind: Workflow
+metadata:
+  generateName: http
+spec:
+  dag: |2+
+    - name: overview
+      impl: http.Request
+      inputs:
+        urls:
+          - https://rickandmortyapi.com/api
+
+    - name: get_characters
+      impl: http.Request
+      inputs:
+        urls: [{{ tasks.overview.outputs.responses[0].content.characters }}]
+      dependencies:
+        - overview
