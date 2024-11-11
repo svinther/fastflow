@@ -56,10 +56,11 @@ def get_operator_version(**kwargs):
 @kopf.on.startup()
 async def configure(settings: kopf.OperatorSettings, **_):
     settings.posting.level = logging.WARNING
-    settings.execution.max_workers = 50
+    settings.execution.max_workers = 20
     settings.networking.connect_timeout = 20
     settings.networking.request_timeout = 90
     settings.watching.server_timeout = 30
     settings.watching.client_timeout = 45
 
     settings.peering.mandatory = True
+    settings.peering.stealth = True
