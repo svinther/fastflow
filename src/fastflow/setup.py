@@ -55,7 +55,7 @@ def get_operator_version(**kwargs):
 
 @kopf.on.startup()
 async def configure(settings: kopf.OperatorSettings, **_):
-    settings.posting.level = logging.WARNING
+    settings.posting.level = logging.FATAL
     settings.execution.max_workers = 20
     settings.networking.connect_timeout = 20
     settings.networking.request_timeout = 90
