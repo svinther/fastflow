@@ -5,11 +5,13 @@ from kubernetes_asyncio.client import ApiException
 
 from fastflow.engine.models import TaskResult, get_class
 from fastflow.engine.utils import _get_owner_digraph_name
-from fastflow.kubernetes import set_child_status_on_parent_cr
+from fastflow.kubernetes import (
+    get_custom_objects_api,
+    set_child_status_on_parent_cr,
+)
 from fastflow.models import (
     TASKSTATUS,
     UNRESOLVED,
-    WORKFLOWSTATUS,
     Task,
     TaskCRD,
     WorkflowCRD,
@@ -20,25 +22,8 @@ from fastflow.setup import get_appsettings
 DEFAULT_TASK_RESULT = TaskResult(success=True, finished=True)
 
 
-@kopf.index(TaskCRD.plural())
-async def task_idx(body: kopf.Body, spec, meta, **_):
-    owner_digraph = next(
-        filter(
-            lambda owner: owner["kind"] == WorkflowCRD.kind(),
-            meta["ownerReferences"],
-        )
-    )
-    digraph_name = owner_digraph.get("name")
-
-    index_key = (digraph_name, spec["name"])
-    index_value = body
-    return {index_key: index_value}
-
-
-@kopf.on.update(
+@kopf.on.create(
     TaskCRD.plural(),
-    field=f"status.{TaskCRD.STATUS_TASK_STATUS}",
-    new=TASKSTATUS.ready.value,
 )
 async def execute_task(
     meta,
@@ -49,14 +34,25 @@ async def execute_task(
     logger,
     **kwargs,
 ):
-    assert status[TaskCRD.STATUS_TASK_STATUS] == TASKSTATUS.ready.value
+    """Execute the task implementation and update the task status.
+
+    As soon as a task is created, we execute the task implementation.
+
+    It is assumed that the task is fully ready for this (DAG wise).
+
+    But there can still be cases where the task is not ready to execute:
+
+    * Inputs for the task can not be fully resolved
+    * The task implementation can not be found or is invalid
+
+    In those cases the task will be marked with status = failed. And it will not be retried.
+
+    """
+    assert status[TaskCRD.STATUS_TASK_STATUS] == TASKSTATUS.executing.value
     index = kwargs["workflow_idx"]
 
     task_model = Task(**spec)
     workflow_body, *_ = index[_get_owner_digraph_name(meta)]
-    if workflow_body.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] == WORKFLOWSTATUS.failed.value:
-        patch.status[TaskCRD.STATUS_TASK_STATUS] = TASKSTATUS.blocked.value
-        raise kopf.PermanentError(f"Task '{task_model.name}' blocked because workflow has status failed")
 
     # Check for unresolved references
     def check_unresolved(inputs, path):
@@ -155,10 +151,17 @@ async def execute_task(
 @kopf.on.update(
     TaskCRD.plural(),
     field=f"status.{TaskCRD.STATUS_TASK_STATUS}",
-    old=kopf.PRESENT,
     new=kopf.PRESENT,
 )
 async def task_status_updated(body, meta, spec, logger, old, new, **_):
+    """Update the parent Workflow status based on the task status.
+
+    We do this in a separate handler for atomicity.
+
+    In the handler where the task is completed, we only patch the task status.
+
+    In this handler we notify the parent workflow of what happened, by patching the parent workflow.
+    """
     workflow_name = _get_owner_digraph_name(meta)
     new_task_status = TASKSTATUS(new)
     finished = new_task_status in (TASKSTATUS.failed, TASKSTATUS.complete)
@@ -183,3 +186,25 @@ async def task_status_updated(body, meta, spec, logger, old, new, **_):
         if e.status != 404:
             raise e
         logger.warn(f"Our parent was deleted, owner ref: {json.dumps(body['metadata']['ownerReferences'])}")
+
+
+@kopf.on.delete(TaskCRD.plural())
+async def task_deleted(meta, namespace, body, logger, **_):
+    try:
+        owner_ref = meta["ownerReferences"][0]
+
+        result = await get_custom_objects_api(mergepatch=True).patch_namespaced_custom_object(
+            WorkflowCRD.group(),
+            WorkflowCRD.version(),
+            namespace,
+            WorkflowCRD.plural(),
+            owner_ref["name"],
+            body={"status": {"children": {meta["uid"]: None}}},
+            _request_timeout=30,
+        )
+        return result
+
+    except ApiException as e:
+        if e.status != 404:
+            raise e
+        logger.warning(f"Our parent was deleted, owner ref: {json.dumps(body['metadata']['ownerReferences'])}")

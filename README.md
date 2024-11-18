@@ -147,7 +147,7 @@ Use helm to run the image in Kubernetes, by specifying the image tag we just cre
 helm -n fastflow-dev upgrade --install --set imageOverride=fastflow fastflow chart
 ```
 
-### Examples using custom Task implementations
+### Example using custom Task implementations
 
 The Operator needs to be able to load the custom code. Here is an example using the `examples/03-farmlife` example
 workflow. This workflow uses custom tasks implemented in `examples/03-farmlife/tasks-impl/farmlife.py`.
@@ -158,4 +158,10 @@ Run the operator so it can load the custom code
 
 ```shell
 fastflow --dev --namespace fastflow-dev examples/03-farmlife/tasks-impl/farmlife.py
+```
+
+#### Apply the example workflow
+
+```shell
+kubectl -n fastflow-dev create -f examples/03-farmlife/workflow.yaml
 ```

@@ -48,7 +48,6 @@ class FastflowCRD:
 @unique
 class WORKFLOWSTATUS(Enum):
     blocked = "blocked"
-    pending = "pending"
     executing = "executing"
     complete = "complete"
     failed = "failed"
@@ -56,11 +55,9 @@ class WORKFLOWSTATUS(Enum):
 
 @unique
 class TASKSTATUS(Enum):
-    pending = "pending"
-    ready = "ready"
+    executing = "executing"
     complete = "complete"
     failed = "failed"
-    # If workflow fails, all tasks that are ready must change to blocked, making the tasks stop their execution attempts
     blocked = "blocked"
 
 

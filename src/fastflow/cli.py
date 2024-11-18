@@ -59,11 +59,13 @@ def main() -> None:
 @click.option("-n", "--namespace", "namespace", multiple=False, required=True)
 @click.option("--dev", "priority", type=int, is_flag=True, flag_value=666)
 @click.option("-p", "--priority", type=int)
+@click.option("--peering", type=str, required=False)
 @click.option("-m", "--module", "modules", multiple=True)
 @click.option("-r", "--handler-retry-delay", "kopf_handler_retry_default_delay", required=False, type=float)
 @click.argument("paths", nargs=-1)
 def run(
     priority: Optional[int],
+    peering: Optional[str],
     namespace: str,
     paths: List[str],
     modules: List[str],
@@ -74,6 +76,8 @@ def run(
         get_appsettings().kopf_priority = priority
     if kopf_handler_retry_default_delay is not None:
         get_appsettings().kopf_handler_retry_default_delay = kopf_handler_retry_default_delay
+    if peering is not None:
+        get_appsettings().kopf_peering = peering
 
     # kopf.configure(verbose=True)  # log formatting
 

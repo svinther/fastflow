@@ -61,15 +61,15 @@ def create_the_workflows():
     return randomlabel
 
 
-def get_workflow_status(randomlabel) -> dict[str, list[WorkflowCRD]]:
+def get_workflow_status(randomlabel) -> dict[WORKFLOWSTATUS | None, list[dict]]:
     workflow_status = defaultdict(list)
     test_workflows = get_crs(WorkflowCRD, label_selector=f"randomlabel={randomlabel}")
     for wf in test_workflows["items"]:
         wf_status_str = wf.get("status", {}).get(WorkflowCRD.STATUS_WORKFLOW_STATUS)
         if wf_status_str:
-            workflow_status[wf_status_str].append(wf)
+            workflow_status[WORKFLOWSTATUS(wf_status_str)].append(wf)
         else:
-            workflow_status["^"].append(wf)
+            workflow_status[None].append(wf)
     return workflow_status
 
 
@@ -80,17 +80,16 @@ def monitor_the_workflows(randomlabel):
     for i in range(600):
         sleep(0.5)
         workflow_status = get_workflow_status(randomlabel)
-        if len(workflow_status["^"]) == 0:
-            pending = len(workflow_status[WORKFLOWSTATUS.pending.value])
-            running = len(workflow_status[WORKFLOWSTATUS.executing.value])
-            completed = len(workflow_status[WORKFLOWSTATUS.complete.value])
+        if len(workflow_status[None]) == 0:
+            running = len(workflow_status[WORKFLOWSTATUS.executing])
+            completed = len(workflow_status[WORKFLOWSTATUS.complete])
             remaining = _NUM_WORKFLOWS - completed
             if remaining == 0:
                 break
 
             assert (
-                min(_PARALLEL_WORKFLOWS, remaining) >= pending + running
-            ), f"pending={pending}, running={running}, completed={completed}, remaining={remaining}"
+                min(_PARALLEL_WORKFLOWS, remaining) >= running
+            ), f"running={running}, completed={completed}, remaining={remaining}"
 
             _CONTINUE = True
 
@@ -114,14 +113,13 @@ def test_delete_executing_workflow():
         for i in range(600):
             sleep(0.5)
             workflow_status = get_workflow_status(randomlabel)
-            if len(workflow_status["^"]) == 0:
-                executing_wfs = (
-                    workflow_status[WORKFLOWSTATUS.executing.value] + workflow_status[WORKFLOWSTATUS.pending.value]
-                )
-                executing_wfs = [wf for wf in executing_wfs if "deletionTimestamp" not in wf["metadata"]]
+            if len(workflow_status[None]) == 0:
+                executing_wfs = [
+                    wf for wf in workflow_status[WORKFLOWSTATUS.executing] if "deletionTimestamp" not in wf["metadata"]
+                ]
                 delete_k8s_workflow_by_manifest_names(executing_wfs)
                 deleted += len(executing_wfs)
 
-                completed = len(workflow_status[WORKFLOWSTATUS.complete.value])
+                completed = len(workflow_status[WORKFLOWSTATUS.complete])
                 if deleted + completed == _NUM_WORKFLOWS:
                     break
