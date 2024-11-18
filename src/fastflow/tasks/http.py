@@ -17,7 +17,7 @@ class Request(TaskImpl):
     urls: TaskInputList
     headers: TaskInputDict = TaskInputDict()
     query_params: TaskInputDict = TaskInputDict()
-    body: TaskInputStr = None
+    body: TaskInputStr = TaskInputStr("")
     method: TaskInputStr = TaskInputStr("GET")
 
     responses: TaskOutput
@@ -31,7 +31,7 @@ class Request(TaskImpl):
                         url=url,
                         headers=self.headers,
                         params=self.query_params,
-                        data=self.body,
+                        data=self.body if self.body else None,
                     )
                     for url in self.urls
                 ]

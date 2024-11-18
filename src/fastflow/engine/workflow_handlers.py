@@ -24,18 +24,6 @@ def _format_statuscounter(statuscounter: dict[TASKSTATUS, int]) -> str:
     return ", ".join([f"{k.value if k else None}:{v}" for k, v in statuscounter.items()])
 
 
-def _get_num_workflows_executing(index: kopf.Index):
-    answer = 0
-    for wfname, (wfbody, *_) in index.items():
-        wf_status = wfbody.status.get(WorkflowCRD.STATUS_WORKFLOW_STATUS)
-        if wf_status and wf_status in (
-            WORKFLOWSTATUS.executing.value,
-            WORKFLOWSTATUS.pending.value,
-        ):
-            answer += 1
-    return answer
-
-
 def _get_blocking_workflows(workflow_crd_model: WorkflowCRDModel, index: kopf.Index, logger):
     blockers = []
     # Check for workflows we depend on being complete
@@ -157,9 +145,9 @@ async def workflow_create(
     field=f"status.{WorkflowCRD.STATUS_WORKFLOW_STATUS}",
     new=WORKFLOWSTATUS.executing.value,
     param="workflow_status",
-)
+)  # noqa
 @kopf.on.update(WorkflowCRD.plural(), field="status.children", param="sts_children")
-async def workflow_children_update(name, meta, namespace, body, patch, new, old, param, **kwargs):
+async def workflow_children_update(name, meta, namespace, body, patch, **kwargs):
     if "deletion_timestamp" in meta:
         assert False, "Should not be called on deleted objects"
 
