@@ -42,11 +42,6 @@ async def set_child_status_on_parent_cr(child_obj, success: bool, finished: bool
     namespace = child_obj["metadata"]["namespace"]
     parent_crd = get_crd_by_kind(owner_ref["kind"])
 
-    # Check that we have a status for this child on the parent already
-    # othwer wise this could be a race condition
-    # parent = ksession.get_custom_resource(**lookup_args)
-    # wait_for_status_on_parent(parent, child_obj["metadata"]["uid"])
-
     body = {
         "status": {
             "children": create_status_patch(

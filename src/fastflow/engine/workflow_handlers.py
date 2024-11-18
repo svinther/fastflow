@@ -1,16 +1,12 @@
 import asyncio
 from collections import defaultdict
-from typing import Optional
+from typing import DefaultDict, Optional
 
 import kopf
 from kopf import Body, Logger, Patch
 from networkx import descendants, topological_sort
 
-from fastflow.kubernetes import (
-    create_cr_as_child,
-    create_status_patch,
-    get_custom_objects_api,
-)
+from fastflow.kubernetes import create_cr_as_child, get_custom_objects_api
 from fastflow.models import (
     TASKSTATUS,
     WORKFLOWSTATUS,
@@ -25,7 +21,7 @@ from fastflow.setup import get_appsettings
 
 
 def _format_statuscounter(statuscounter: dict[TASKSTATUS, int]) -> str:
-    return ", ".join([f"{k.value}:{v}" for k, v in statuscounter.items()])
+    return ", ".join([f"{k.value if k else None}:{v}" for k, v in statuscounter.items()])
 
 
 def _get_num_workflows_executing(index: kopf.Index):
@@ -77,16 +73,28 @@ async def startup_fn(logger, **kwargs):
     for wf in workflows["items"]:
         status = wf.get("status", {})
         wf_status = status.get(WorkflowCRD.STATUS_WORKFLOW_STATUS)
-        if wf_status and wf_status in (
-            WORKFLOWSTATUS.executing.value,
-            WORKFLOWSTATUS.pending.value,
-        ):
+        if wf_status and wf_status == WORKFLOWSTATUS.executing.value:
             _GLOBAL_ACTIVE_WORKFLOWS.add((wf["metadata"]["namespace"], wf["metadata"]["name"]))
 
 
 @kopf.index(WorkflowCRD.plural())
 async def workflow_idx(name, body, **_):
     return {name: body}
+
+
+@kopf.index(TaskCRD.plural())
+async def task_idx(body: kopf.Body, spec, meta, **_):
+    owner_digraph = next(
+        filter(
+            lambda owner: owner["kind"] == WorkflowCRD.kind(),
+            meta["ownerReferences"],
+        )
+    )
+    digraph_name = owner_digraph.get("name")
+
+    index_key = (digraph_name, spec["name"])
+    index_value = body
+    return {index_key: index_value}
 
 
 @kopf.on.create(WorkflowCRD.plural())
@@ -98,12 +106,21 @@ async def workflow_create(
     patch: Patch,
     **kwargs,
 ):
+    """Event handler for handling the event of a new Workflow being created.
+
+    If the workflow is blocked by dependencies to other workflows, or if the maximum number of parallel workflows
+    is reached, the workflow will be set to `blocked` state.
+
+    If the workflow is not blocked, it will be set to `executing` state.
+
+    This handler has no other side effects than setting the status of the newly created Workflow.
+    """
     global _GLOBAL_WORKFLOW_LOCK
     async with _GLOBAL_WORKFLOW_LOCK:
         logger.info(f"Create new Workflow: '{name}'")
         index = kwargs["workflow_idx"]
         workflow_crd_model = WorkflowCRDModel(**body.spec)
-        initial_workflow_status = WORKFLOWSTATUS.pending
+        initial_workflow_status = WORKFLOWSTATUS.executing
 
         blocked_messages = []
         if len(_GLOBAL_ACTIVE_WORKFLOWS) >= get_appsettings().max_parallel_workflows:
@@ -135,6 +152,74 @@ async def workflow_create(
         patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = initial_workflow_status.value
 
 
+@kopf.on.update(
+    WorkflowCRD.plural(),
+    field=f"status.{WorkflowCRD.STATUS_WORKFLOW_STATUS}",
+    new=WORKFLOWSTATUS.executing.value,
+    param="workflow_status",
+)
+@kopf.on.update(WorkflowCRD.plural(), field="status.children", param="sts_children")
+async def workflow_children_update(name, meta, namespace, body, patch, new, old, param, **kwargs):
+    if "deletion_timestamp" in meta:
+        assert False, "Should not be called on deleted objects"
+
+    index = kwargs["task_idx"]
+
+    workflow_crd_model = WorkflowCRDModel(**body.spec)
+    workflow_model = render_workflow_with_jinja2(name, workflow_crd_model, task_idx=index)
+    try:
+        G = build_nxdigraph(workflow_model.tasks)
+    except WorkflowMalformed as e:
+        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = WORKFLOWSTATUS.failed.value
+        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS_MSG] = str(e)
+        raise kopf.PermanentError(e)
+
+    # organize tasks
+    task_status_sets: DefaultDict[TASKSTATUS | None, set[str]] = defaultdict(set)
+    for task_item in workflow_model.tasks:
+        task_name = task_item.name
+        if (name, task_name) not in index:
+            task_status_sets[None].add(task_name)
+        else:
+            task_body, *_ = index[(name, task_name)]
+            task_status = TASKSTATUS(task_body.status.get(TaskCRD.STATUS_TASK_STATUS))
+            task_status_sets[task_status].add(task_name)
+
+    for task_name in reversed(list(topological_sort(G))):
+        # check if there is no dependent tasks left to wait for
+        if not descendants(G, task_name) - task_status_sets[TASKSTATUS.complete]:
+            # Schedule if not already scheduled
+            if task_name in task_status_sets[None]:
+                # task_body, *_ = index[(name, task_name)]
+                task_item = next(filter(lambda t: t.name == task_name, workflow_model.tasks))
+
+                # Create the Task object, it will start executing on the create event handler
+                _ = await create_cr_as_child(
+                    namespace,
+                    TaskCRD,
+                    {
+                        "metadata": {
+                            "labels": {
+                                TaskCRD.LABEL_WORKFLOW: name,
+                                TaskCRD.LABEL_TASK_LOCAL_NAME: task_item.name,
+                            }
+                        },
+                        "spec": task_item.model_dump(),
+                        "status": {TaskCRD.STATUS_TASK_STATUS: TASKSTATUS.executing.value},
+                    },
+                )
+
+                task_status_sets[None].remove(task_name)
+                task_status_sets[TASKSTATUS.executing].add(task_name)
+
+    statuscounter = {k: len(v) for k, v in task_status_sets.items() if v}
+    if len(statuscounter) == 1 and TASKSTATUS.complete in statuscounter:
+        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = WORKFLOWSTATUS.complete.value
+    elif TASKSTATUS.failed in statuscounter:
+        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = WORKFLOWSTATUS.failed.value
+    patch.status[WorkflowCRD.STATUS_TASKS_SUMMARY] = _format_statuscounter(statuscounter)
+
+
 async def _activate_blocked_workflows(index: kopf.Index, namespace, logger: Logger):
     unblock_wfs: list[str] = []
     for wfname, (wfbody, *_) in index.items():
@@ -154,7 +239,7 @@ async def _activate_blocked_workflows(index: kopf.Index, namespace, logger: Logg
             WorkflowCRD.plural(),
             name,
             {
-                "status": {WorkflowCRD.STATUS_WORKFLOW_STATUS: WORKFLOWSTATUS.pending.value},
+                "status": {WorkflowCRD.STATUS_WORKFLOW_STATUS: WORKFLOWSTATUS.executing.value},
             },
         )
         _GLOBAL_ACTIVE_WORKFLOWS.add((namespace, name))
@@ -171,7 +256,6 @@ async def workflow_completed(
     namespace: Optional[str],
     name,
     logger: Logger,
-    memo: kopf.Memo,
     **kwargs,
 ):
     global _GLOBAL_WORKFLOW_LOCK
@@ -184,131 +268,10 @@ async def workflow_completed(
         await _activate_blocked_workflows(index, namespace, logger)
 
 
-@kopf.on.update(
-    WorkflowCRD.plural(),
-    field=f"status.{WorkflowCRD.STATUS_WORKFLOW_STATUS}",
-    new=WORKFLOWSTATUS.pending.value,
-)
-async def workflow_update(
-    name,
-    body,
-    meta,
-    namespace,
-    logger,
-    patch,
-    **kwargs,
-):
-    global _GLOBAL_WORKFLOW_LOCK
-    async with _GLOBAL_WORKFLOW_LOCK:
-        logger.info(f"Create new Workflow: '{meta.name}'")
-        index = kwargs["task_idx"]
-
-        workflow_crd_model = WorkflowCRDModel(**body.spec)
-        workflow_model = render_workflow_with_jinja2(name, workflow_crd_model, task_idx=index)
-
-        statuscounter = defaultdict(int)
-
-        for taskitem in workflow_model.tasks:
-            task_status = TASKSTATUS.pending
-            statuscounter[task_status] += 1
-
-            task_cr = await create_cr_as_child(
-                namespace,
-                TaskCRD,
-                {
-                    "metadata": {
-                        "labels": {
-                            TaskCRD.LABEL_WORKFLOW: name,
-                            TaskCRD.LABEL_TASK_LOCAL_NAME: taskitem.name,
-                        }
-                    },
-                    "spec": taskitem.model_dump(),
-                    "status": {TaskCRD.STATUS_TASK_STATUS: task_status.value},
-                },
-            )
-
-            patch.status.setdefault("children", {}).update(
-                create_status_patch(
-                    task_cr,
-                    False,
-                    False,
-                    extra_fields={
-                        "task_local_name": taskitem.name,
-                        "task_status": task_status.value,
-                    },
-                )
-            )
-
-        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = WORKFLOWSTATUS.executing.value
-        patch.status[WorkflowCRD.STATUS_TASKS_SUMMARY] = _format_statuscounter(statuscounter)
-
-
-@kopf.on.update(WorkflowCRD.plural(), field="status.children")
-async def workflow_children_update(memo: kopf.Memo, name, namespace, body, patch, logger, **kwargs):
-    index = kwargs["task_idx"]
-
-    workflow_crd_model = WorkflowCRDModel(**body.spec)
-    workflow_model = render_workflow_with_jinja2(name, workflow_crd_model, task_idx=index)
-    try:
-        G = build_nxdigraph(workflow_model.tasks)
-    except WorkflowMalformed as e:
-        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = WORKFLOWSTATUS.failed.value
-        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS_MSG] = str(e)
-        raise kopf.PermanentError(e)
-
-    # organize tasks
-    task_status_sets = defaultdict(set)
-    for task_item in workflow_model.tasks:
-        task_name = task_item.name
-        task_body, *_ = index[(name, task_name)]
-
-        task_status = TASKSTATUS(task_body.status[TaskCRD.STATUS_TASK_STATUS])
-        task_status_sets[task_status].add(task_name)
-
-    # fail fast
-    if task_status_sets[TASKSTATUS.failed]:
-        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = WORKFLOWSTATUS.failed.value
-        statuscounter = {k: len(v) for k, v in task_status_sets.items() if v}
-        patch.status[WorkflowCRD.STATUS_TASKS_SUMMARY] = _format_statuscounter(statuscounter)
-        raise kopf.PermanentError("Failed tasks")
-
-    for task_name in reversed(list(topological_sort(G))):
-        # check if there is no dependent tasks left to wait for
-        if not descendants(G, task_name) - task_status_sets[TASKSTATUS.complete]:
-            # Schedule if not already scheduled
-            if task_name in task_status_sets[TASKSTATUS.pending]:
-                task_body, *_ = index[(name, task_name)]
-                task_model = next(filter(lambda t: t.name == task_name, workflow_model.tasks))
-                logger.info(
-                    f"Task status for '{name}'/'{task_body.spec['name']}':"
-                    f" '{task_body.status[TaskCRD.STATUS_TASK_STATUS]}'"
-                    f"-->'{TASKSTATUS.ready.value}'"
-                )
-
-                await get_custom_objects_api(mergepatch=True).patch_namespaced_custom_object(
-                    TaskCRD.group(),
-                    TaskCRD.version(),
-                    namespace,
-                    TaskCRD.plural(),
-                    task_body.metadata.name,
-                    body={
-                        "spec": task_model.model_dump(),
-                        "status": {TaskCRD.STATUS_TASK_STATUS: TASKSTATUS.ready.value},
-                    },
-                )
-                task_status_sets[TASKSTATUS.pending].remove(task_name)
-                task_status_sets[TASKSTATUS.ready].add(task_name)
-
-    statuscounter = {k: len(v) for k, v in task_status_sets.items() if v}
-    if len(statuscounter) == 1 and TASKSTATUS.complete in statuscounter:
-        patch.status[WorkflowCRD.STATUS_WORKFLOW_STATUS] = WORKFLOWSTATUS.complete.value
-    patch.status[WorkflowCRD.STATUS_TASKS_SUMMARY] = _format_statuscounter(statuscounter)
-
-
 @kopf.on.delete(
     WorkflowCRD.plural(),
     field=f"status.{WorkflowCRD.STATUS_WORKFLOW_STATUS}",
-    value=lambda val, **_: val in (WORKFLOWSTATUS.pending.value, WORKFLOWSTATUS.executing.value),
+    value=lambda val, **_: val == WORKFLOWSTATUS.executing.value,
 )
 async def workflow_delete(namespace, name, logger, **kwargs):
     global _GLOBAL_WORKFLOW_LOCK

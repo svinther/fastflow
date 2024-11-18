@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     namespace: str = "default"
     kopf_liveness_endpoint: str = "http://0.0.0.0:8080/healthz"
     kopf_priority: int = 666
+    kopf_peering: str = "default"
 
     kopf_handler_retry_default_delay: float = 15.0
 
@@ -30,6 +31,7 @@ class Settings(BaseSettings):
             namespaces=[self.namespace],
             clusterwide=False,
             liveness_endpoint=self.kopf_liveness_endpoint,
+            peering_name=self.kopf_peering,
         )
 
 
@@ -55,8 +57,8 @@ def get_operator_version(**kwargs):
 
 @kopf.on.startup()
 async def configure(settings: kopf.OperatorSettings, **_):
-    settings.posting.level = logging.FATAL
-    settings.execution.max_workers = 20
+    # settings.posting.level = logging.FATAL
+    settings.posting.enabled = False
     settings.networking.connect_timeout = 20
     settings.networking.request_timeout = 90
     settings.watching.server_timeout = 30

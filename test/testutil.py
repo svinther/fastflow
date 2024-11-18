@@ -2,13 +2,20 @@ import logging
 import os
 import sys
 from copy import deepcopy
-from typing import List, Type, Union
+from time import sleep
+from typing import List, Tuple, Type, Union
 
 from kopf._kits.runner import KopfRunner
 from kubernetes import config
 from kubernetes.client import ApiClient, ApiException, CustomObjectsApi
 
-from fastflow.models import FastflowCRD, TaskCRD, WorkflowCRD
+from fastflow.models import (
+    TASKSTATUS,
+    WORKFLOWSTATUS,
+    FastflowCRD,
+    TaskCRD,
+    WorkflowCRD,
+)
 from fastflow.setup import get_appsettings
 
 logger = logging.getLogger("kopf")
@@ -20,8 +27,7 @@ config.load_kube_config()
 OPERATOR_NAMESPACE = "fastflow-test"
 os.environ["OPERATOR_NAMESPACE"] = OPERATOR_NAMESPACE
 
-api_client = ApiClient()
-
+_api_client = ApiClient()
 
 # @atexit.register
 # def cleanup():
@@ -41,7 +47,7 @@ def create_k8s_workflows_from_manifests(manifests: List[dict]) -> List[dict]:
 
         WorkflowCRD.kind(),
 
-        result = CustomObjectsApi(api_client).create_namespaced_custom_object(
+        result = CustomObjectsApi(_api_client).create_namespaced_custom_object(
             WorkflowCRD.group(),
             WorkflowCRD.version(),
             OPERATOR_NAMESPACE,
@@ -58,7 +64,7 @@ def delete_k8s_workflow_by_manifest_names(manifests: List[dict], strip_finalizer
             name = manifest.get("metadata", {}).get("name")
             try:
                 if strip_finalizers:
-                    CustomObjectsApi(api_client).patch_namespaced_custom_object(
+                    CustomObjectsApi(_api_client).patch_namespaced_custom_object(
                         WorkflowCRD.group(),
                         WorkflowCRD.version(),
                         OPERATOR_NAMESPACE,
@@ -67,7 +73,7 @@ def delete_k8s_workflow_by_manifest_names(manifests: List[dict], strip_finalizer
                         {"metadata": {"finalizers": []}},
                     )
 
-                CustomObjectsApi(api_client).delete_namespaced_custom_object(
+                CustomObjectsApi(_api_client).delete_namespaced_custom_object(
                     WorkflowCRD.group(), WorkflowCRD.version(), OPERATOR_NAMESPACE, WorkflowCRD.plural(), name
                 )
             except ApiException as e:
@@ -109,7 +115,7 @@ class AbstractOperatorTest(KopfRunner):
 
 def get_cr(name, crd: Type[FastflowCRD]):
     try:
-        return CustomObjectsApi(api_client).get_namespaced_custom_object(
+        return CustomObjectsApi(_api_client).get_namespaced_custom_object(
             crd.group(), crd.version(), OPERATOR_NAMESPACE, crd.plural(), name
         )
     except ApiException as e:
@@ -119,13 +125,13 @@ def get_cr(name, crd: Type[FastflowCRD]):
 
 
 def get_crs(crd: Type[FastflowCRD], label_selector: str = None):
-    return CustomObjectsApi(api_client).list_namespaced_custom_object(
+    return CustomObjectsApi(_api_client).list_namespaced_custom_object(
         crd.group(), crd.version(), OPERATOR_NAMESPACE, crd.plural(), label_selector=label_selector
     )
 
 
 def cleanup_workflow_objects():
-    CustomObjectsApi(api_client).delete_collection_namespaced_custom_object(
+    CustomObjectsApi(_api_client).delete_collection_namespaced_custom_object(
         WorkflowCRD.group(),
         WorkflowCRD.version(),
         OPERATOR_NAMESPACE,
@@ -141,3 +147,29 @@ def get_k8s_task_object(workflow_obj, task_local_name):
         )
     )
     return get_cr(child_status["name"], TaskCRD)
+
+
+def wait_for_workflow_status(wf_name: str, wait_for_status: Tuple[WORKFLOWSTATUS, ...]) -> WorkflowCRD:
+    while True:
+        sleep(2)
+        wf = get_cr(wf_name, WorkflowCRD)
+        wf_status_str = wf.get("status", {}).get("workflow_status", None)
+        if wf_status_str:
+            wf_status = WORKFLOWSTATUS(wf_status_str)
+            if wf_status in wait_for_status:
+                return wf
+
+
+def set_task_status(task_name: str, status: TASKSTATUS):
+    CustomObjectsApi(_api_client).patch_namespaced_custom_object(
+        TaskCRD.group(),
+        TaskCRD.version(),
+        OPERATOR_NAMESPACE,
+        TaskCRD.plural(),
+        task_name,
+        {"status": {TaskCRD.STATUS_TASK_STATUS: status.value}},
+    )
+
+
+def get_api_client():
+    return _api_client
