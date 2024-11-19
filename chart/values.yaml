@@ -27,3 +27,8 @@ image:
   ##   - myRegistryKeySecretName
   ##
   pullSecrets: []
+
+rbac:
+  ## If true, create & use RBAC resources
+  create: true
+  clusterScope: false
