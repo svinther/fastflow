@@ -23,6 +23,8 @@ DEFAULT_TASK_RESULT = TaskResult(success=True, finished=True)
 
 
 @kopf.on.create(
+    TaskCRD.group(),
+    TaskCRD.version(),
     TaskCRD.plural(),
 )
 async def execute_task(
@@ -149,6 +151,8 @@ async def execute_task(
 
 
 @kopf.on.update(
+    TaskCRD.group(),
+    TaskCRD.version(),
     TaskCRD.plural(),
     field=f"status.{TaskCRD.STATUS_TASK_STATUS}",
     new=kopf.PRESENT,
@@ -188,7 +192,7 @@ async def task_status_updated(body, meta, spec, logger, old, new, **_):
         logger.warn(f"Our parent was deleted, owner ref: {json.dumps(body['metadata']['ownerReferences'])}")
 
 
-@kopf.on.delete(TaskCRD.plural())
+@kopf.on.delete(TaskCRD.group(), TaskCRD.version(), TaskCRD.plural())
 async def task_deleted(meta, namespace, body, logger, **_):
     try:
         owner_ref = meta["ownerReferences"][0]
@@ -197,6 +201,8 @@ async def task_deleted(meta, namespace, body, logger, **_):
             WorkflowCRD.group(),
             WorkflowCRD.version(),
             namespace,
+            WorkflowCRD.group(),
+            WorkflowCRD.version(),
             WorkflowCRD.plural(),
             owner_ref["name"],
             body={"status": {"children": {meta["uid"]: None}}},

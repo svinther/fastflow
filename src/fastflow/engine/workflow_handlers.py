@@ -65,12 +65,12 @@ async def startup_fn(logger, **kwargs):
             _GLOBAL_ACTIVE_WORKFLOWS.add((wf["metadata"]["namespace"], wf["metadata"]["name"]))
 
 
-@kopf.index(WorkflowCRD.plural())
+@kopf.index(WorkflowCRD.group(), WorkflowCRD.version(), WorkflowCRD.plural())
 async def workflow_idx(name, body, **_):
     return {name: body}
 
 
-@kopf.index(TaskCRD.plural())
+@kopf.index(TaskCRD.group(), TaskCRD.version(), TaskCRD.plural())
 async def task_idx(body: kopf.Body, spec, meta, **_):
     owner_digraph = next(
         filter(
@@ -85,7 +85,7 @@ async def task_idx(body: kopf.Body, spec, meta, **_):
     return {index_key: index_value}
 
 
-@kopf.on.create(WorkflowCRD.plural())
+@kopf.on.create(WorkflowCRD.group(), WorkflowCRD.version(), WorkflowCRD.plural())
 async def workflow_create(
     namespace: str | None,
     name: str | None,
@@ -141,12 +141,16 @@ async def workflow_create(
 
 
 @kopf.on.update(
+    WorkflowCRD.group(),
+    WorkflowCRD.version(),
     WorkflowCRD.plural(),
     field=f"status.{WorkflowCRD.STATUS_WORKFLOW_STATUS}",
     new=WORKFLOWSTATUS.executing.value,
     param="workflow_status",
 )  # noqa
-@kopf.on.update(WorkflowCRD.plural(), field="status.children", param="sts_children")
+@kopf.on.update(
+    WorkflowCRD.group(), WorkflowCRD.version(), WorkflowCRD.plural(), field="status.children", param="sts_children"
+)
 async def workflow_children_update(name, meta, namespace, body, patch, **kwargs):
     if "deletion_timestamp" in meta:
         assert False, "Should not be called on deleted objects"
@@ -236,6 +240,8 @@ async def _activate_blocked_workflows(index: kopf.Index, namespace, logger: Logg
 
 
 @kopf.on.update(
+    WorkflowCRD.group(),
+    WorkflowCRD.version(),
     WorkflowCRD.plural(),
     field=f"status.{WorkflowCRD.STATUS_WORKFLOW_STATUS}",
     new=WORKFLOWSTATUS.complete.value,
@@ -257,6 +263,8 @@ async def workflow_completed(
 
 
 @kopf.on.delete(
+    WorkflowCRD.group(),
+    WorkflowCRD.version(),
     WorkflowCRD.plural(),
     field=f"status.{WorkflowCRD.STATUS_WORKFLOW_STATUS}",
     value=lambda val, **_: val == WORKFLOWSTATUS.executing.value,

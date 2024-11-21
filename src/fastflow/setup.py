@@ -53,6 +53,10 @@ def get_operator_version(**kwargs):
 @kopf.on.startup()
 async def configure(settings: kopf.OperatorSettings, **_):
     logger.info("Fastflow version: %s", __fastflow_version__)
+
+    logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
+    logging.getLogger("kopf.activities.probe").setLevel(logging.WARNING)
+
     # settings.posting.level = logging.FATAL
     settings.posting.enabled = False
 
