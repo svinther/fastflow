@@ -202,8 +202,6 @@ async def task_deleted(meta, namespace, body, logger, **_):
             WorkflowCRD.version(),
             namespace,
             WorkflowCRD.group(),
-            WorkflowCRD.version(),
-            WorkflowCRD.plural(),
             owner_ref["name"],
             body={"status": {"children": {meta["uid"]: None}}},
             _request_timeout=30,
