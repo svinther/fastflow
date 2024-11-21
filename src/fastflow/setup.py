@@ -55,6 +55,9 @@ async def configure(settings: kopf.OperatorSettings, **_):
     logger.info("Fastflow version: %s", __fastflow_version__)
     # settings.posting.level = logging.FATAL
     settings.posting.enabled = False
+
+    settings.execution.max_workers = 5
+
     settings.networking.connect_timeout = 20
     settings.networking.request_timeout = 90
     settings.watching.server_timeout = 30
