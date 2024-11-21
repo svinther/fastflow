@@ -9,7 +9,7 @@ kubectl create ns fastflow
 helm -n fastflow upgrade --install fastflow chart
 ```
 
-To install in more namespasces, create the namespace and run the helm command again, this time with the
+To install in more namespaces, create the namespace and run the helm command again, this time with the
 `--skip-crds` flag.
 
 ```shell
@@ -137,6 +137,7 @@ python3 -m build
 Build Docker image using minikube
 
 ```shell
+rm -Rf dist && python3 -m build
 eval $(minikube -p minikube docker-env)
 DOCKER_BUILDKIT=1 docker build -t fastflow .
 ```
