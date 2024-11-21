@@ -1,15 +1,16 @@
 import logging
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import version
 
 import kopf
+from kopf import LogFormat
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-logging.basicConfig(level=logging.INFO)
 
 logging.getLogger("kubernetes").setLevel(logging.INFO)
 
 logger = logging.getLogger(__name__)
+
+__fastflow_version__ = version("python-fastflow")
 
 
 class Settings(BaseSettings):
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
     kopf_liveness_endpoint: str = "http://0.0.0.0:8080/healthz"
     kopf_priority: int = 666
     kopf_peering: str = "default"
+    log_format: LogFormat = LogFormat.FULL
 
     kopf_handler_retry_default_delay: float = 15.0
 
@@ -43,20 +45,14 @@ def get_appsettings() -> Settings:
     return _appsettings
 
 
-try:
-    __version__ = version("package-name")
-except PackageNotFoundError:
-    # package is not installed
-    __version__ = "unknown"
-
-
 @kopf.on.probe(id="version")
 def get_operator_version(**kwargs):
-    return __version__
+    return __fastflow_version__
 
 
 @kopf.on.startup()
 async def configure(settings: kopf.OperatorSettings, **_):
+    logger.info("Fastflow version: %s", __fastflow_version__)
     # settings.posting.level = logging.FATAL
     settings.posting.enabled = False
     settings.networking.connect_timeout = 20

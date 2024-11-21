@@ -8,6 +8,7 @@ from typing import List, Optional
 import click
 import kopf
 from kopf._cogs.helpers import loaders
+from kopf._core.actions import loggers
 
 from fastflow.setup import get_appsettings
 
@@ -80,6 +81,7 @@ def run(
         get_appsettings().kopf_peering = peering
 
     # kopf.configure(verbose=True)  # log formatting
+    loggers.configure(log_format=get_appsettings().log_format)
 
     loaders.preload(
         paths=paths,
