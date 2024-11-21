@@ -61,6 +61,7 @@ def test_it():
         assert WORKFLOWSTATUS.failed.value == wf_status_str
 
         restart_task = None
+        assert "children" in wf["status"]
         for task in wf["status"]["children"].values():
             if task["task_local_name"] == "failing_task":
                 assert task["task_status"] == TASKSTATUS.failed.value
